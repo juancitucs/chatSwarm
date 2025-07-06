@@ -1,7 +1,7 @@
-
 fastapi
 uvicorn[standard]
-boto3
 rethinkdb
+boto3
 bcrypt
+PyJWT
 python-jose[cryptography]
