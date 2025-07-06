@@ -1,0 +1,11 @@
+
+:80 {
+  reverse_proxy /api/* api:8000 {
+    lb_policy random
+    lb_retries 2
+    lb_try_duration 3s
+  }
+  reverse_proxy /* :8000 {
+    lb_policy random
+  }
+}

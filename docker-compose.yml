@@ -1,0 +1,72 @@
+
+version: "3.8"
+
+networks:
+  chat-net:
+    driver: overlay
+
+services:
+  # 4.1 MinIO (storage)
+  minio:
+    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    networks:
+      - chat-net
+
+  # 4.2 RethinkDB master
+  rethinkdb-master:
+    image: rethinkdb:latest
+    command: rethinkdb --bind all
+    ports:
+      - "28015:28015"
+      - "8080:8080"
+    networks:
+      - chat-net
+
+  # 4.3 RethinkDB replica
+  rethinkdb-replica:
+    image: rethinkdb:latest
+    command: rethinkdb --bind all --join rethinkdb-master:29015
+    networks:
+      - chat-net
+
+  # 4.4 API (FastAPI + Uvicorn)
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - rethinkdb-master
+      - rethinkdb-replica
+      - minio
+    environment:
+      RDB_HOST: rethinkdb-master
+      RDB_PORT: 28015
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    networks:
+      - chat-net
+
+  # 4.5 Caddy (balanceador L7)
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+    depends_on:
+      - api
+    networks:
+      - chat-net
+
+volumes:
+  minio-data:

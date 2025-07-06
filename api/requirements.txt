@@ -1,0 +1,7 @@
+
+fastapi
+uvicorn[standard]
+boto3
+rethinkdb
+bcrypt
+python-jose[cryptography]
