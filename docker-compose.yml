@@ -53,6 +53,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
+      JWT_SECRET: "JWT_SECRET_KEY"
     networks:
       - chat-net
 

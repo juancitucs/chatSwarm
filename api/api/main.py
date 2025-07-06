@@ -1,4 +1,5 @@
 import json
+import concurrent.futures
 from botocore.exceptions import ClientError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Depends
@@ -14,11 +15,14 @@ import bcrypt, jwt, datetime, os, boto3, uuid, json, asyncio
 from typing import Any, Callable
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
+
+FEED_EXECUTOR = concurrent.futures.ThreadPoolExecutor() 
+
 TBL_ROOMS = "rooms"
 auth_scheme = HTTPBearer() 
 # ---------- RethinkDB ----------
 r = RethinkDB()
-RDB_HOST = "192.168.122.103"
+RDB_HOST = "rethinkdb-master"
 RDB_PORT = 28015
 DB_NAME   = "chat"
 TBL_USERS = "users"
@@ -80,7 +84,7 @@ def _init_db():
 
 MINIO = boto3.client(
     "s3",
-    endpoint_url="http://192.168.122.106:9000",
+    endpoint_url="http://minio:9000",
     aws_access_key_id="minioadmin",
     aws_secret_access_key="minioadmin",
 )
@@ -115,7 +119,8 @@ MINIO.put_bucket_policy(
 
 
 # ---------- JWT ----------
-SECRET = "super_secreto"
+SECRET = os.getenv("JWT_SECRET", "super_secreto")
+
 
 def create_jwt(username: str):
     payload = {
@@ -299,7 +304,7 @@ async def upload_file(
         "file": file_id,
         "filename": f.filename,
         "content_type": f.content_type,
-        "url": f"http://192.168.122.106:9000/chat/{file_id}"
+        "url": f"http://minio:9000/chat/{file_id}"
     }
 
 
