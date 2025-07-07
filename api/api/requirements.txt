@@ -5,3 +5,4 @@ boto3
 bcrypt
 PyJWT
 python-jose[cryptography]
+python-multipart
