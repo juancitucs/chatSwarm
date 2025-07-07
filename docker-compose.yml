@@ -1,4 +1,3 @@
-
 version: "3.8"
 
 networks:
@@ -13,12 +12,24 @@ services:
       - "8080:8080"
     networks:
       - chat-net
+    volumes:
+      - rethinkdb-master-data:/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
   rethinkdb-replica:
     image: rethinkdb
     command: rethinkdb --bind all --join rethinkdb-master:29015
     networks:
       - chat-net
+    volumes:
+      - rethinkdb-replica-data:/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
   minio:
     image: minio/minio
@@ -33,9 +44,13 @@ services:
       - minio-data:/data
     networks:
       - chat-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
   api:
-    image: chat-api:latest  # Ya debe estar construida con docker build
+    image: chat-api:latest # Ya debe estar construida con docker build
     ports:
       - "8000:8000"
     environment:
@@ -51,6 +66,10 @@ services:
       - minio
     networks:
       - chat-net
+    deploy:
+      replicas: 2 # Scale to 2 API instances
+      restart_policy:
+        condition: on-failure
 
   caddy:
     image: caddy:2
@@ -62,7 +81,12 @@ services:
       - api
     networks:
       - chat-net
+    deploy:
+      replicas: 1 # Caddy as a single entry point
+      restart_policy:
+        condition: on-failure
 
 volumes:
   minio-data:
-
+  rethinkdb-master-data:
+  rethinkdb-replica-data:
