@@ -50,7 +50,7 @@ services:
         condition: on-failure
 
   api:
-    image: chat-api:latest # Ya debe estar construida con docker build
+    image: chat-api:latest
     ports:
       - "8000:8000"
     environment:
@@ -67,11 +67,11 @@ services:
     networks:
       - chat-net
     deploy:
-      replicas: 2 # Scale to 2 API instances
+      replicas: 2
       restart_policy:
         condition: on-failure
 
-  volumes:
+volumes:
   minio-data:
   rethinkdb-master-data:
   rethinkdb-replica-data:
