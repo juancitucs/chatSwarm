@@ -71,22 +71,7 @@ services:
       restart_policy:
         condition: on-failure
 
-  caddy:
-    image: caddy:2
-    ports:
-      - "80:80"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-    depends_on:
-      - api
-    networks:
-      - chat-net
-    deploy:
-      replicas: 1 # Caddy as a single entry point
-      restart_policy:
-        condition: on-failure
-
-volumes:
+  volumes:
   minio-data:
   rethinkdb-master-data:
   rethinkdb-replica-data:
