@@ -211,9 +211,8 @@
     </div>
 
     <script>
-      const API_HOST = window.location.hostname;
-      const API = `http://${API_HOST}`;
-      const STORAGE = `http://${API_HOST}:9000/chat/`;
+      const API = window.location.origin;
+      const STORAGE = `${window.location.protocol}//${window.location.hostname}:9000/chat/`;
       let token = "",
         user = "",
         room = "";

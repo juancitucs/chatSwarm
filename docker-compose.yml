@@ -1,3 +1,4 @@
+version: '3.8'
 
 networks:
   chat-net:
@@ -29,6 +30,8 @@ services:
       replicas: 1
       restart_policy:
         condition: on-failure
+    depends_on:
+      - rethinkdb-master
 
   minio:
     image: minio/minio
@@ -50,14 +53,16 @@ services:
 
   api:
     image: chat-api:latest
+    build: ./api
     ports:
-      - "80:8000"
+      - "8000:8000"
     environment:
       RDB_HOST: rethinkdb-master
       RDB_PORT: 28015
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
+      MINIO_PUBLIC_URL: http://localhost:9000
       JWT_SECRET: super_secreto
     depends_on:
       - rethinkdb-master
@@ -66,7 +71,7 @@ services:
     networks:
       - chat-net
     deploy:
-      replicas: 2
+      replicas: 3
       restart_policy:
         condition: on-failure
 

@@ -1,8 +1,8 @@
 fastapi
-uvicorn[standard]
+uvicorn
 rethinkdb
 boto3
 bcrypt
 PyJWT
-python-jose[cryptography]
+python-jose
 python-multipart
