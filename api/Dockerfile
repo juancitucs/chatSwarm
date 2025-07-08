@@ -10,11 +10,11 @@ RUN python -m venv $VENV_PATH
 ENV PATH="$VENV_PATH/bin:$PATH"
 
 WORKDIR /app
-COPY requirements.txt .
+COPY api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar el resto del código
-COPY . .
+COPY api/ .
 
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--lifespan", "off"]
