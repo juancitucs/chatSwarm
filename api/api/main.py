@@ -72,7 +72,7 @@ def _init_db():
             # Tabla usuarios (PK = username)
             print(f"Checking for table {TBL_USERS}...", flush=True)
             r.db(DB_NAME).table_create(
-                TBL_USERS, primary_key="username", replicas=2
+                TBL_USERS, primary_key="username", replicas=1
             ).run(conn)
             print(f"Table {TBL_USERS} created.", flush=True)
             # Verify table creation
@@ -83,7 +83,7 @@ def _init_db():
             # Tabla mensajes
             print(f"Checking for table {TBL_MSGS}...", flush=True)
             r.db(DB_NAME).table_create(
-                TBL_MSGS, replicas=2
+                TBL_MSGS, replicas=1
             ).run(conn)
             print(f"Table {TBL_MSGS} created.", flush=True)
             # Verify table creation
@@ -96,7 +96,7 @@ def _init_db():
             r.db(DB_NAME).table_create(
                 TBL_ROOMS,
                 primary_key="id",
-                replicas=2
+                replicas=1
             ).run(conn)
             print(f"Table {TBL_ROOMS} created.", flush=True)
             # Verify table creation
