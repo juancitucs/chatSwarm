@@ -67,36 +67,33 @@ def _init_db():
                 print(f"Database {DB_NAME} already exists.")
 
             # Tabla usuarios (PK = username)
-            try:
-                r.db(DB_NAME).table_create(
-                    TBL_USERS, primary_key="username", replicas=2
-                ).run(conn)
-                print(f"Table {TBL_USERS} created.")
-            except ReqlOpFailedError:
-                print(f"Table {TBL_USERS} already exists.")
-                pass
+            r.db(DB_NAME).table_create(
+                TBL_USERS, primary_key="username", replicas=2
+            ).run(conn)
+            print(f"Table {TBL_USERS} created.")
+            # Verify table creation
+            if TBL_USERS not in r.db(DB_NAME).table_list().run(conn):
+                raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_USERS}")
 
             # Tabla mensajes
-            try:
-                r.db(DB_NAME).table_create(
-                    TBL_MSGS, replicas=2
-                ).run(conn)
-                print(f"Table {TBL_MSGS} created.")
-            except ReqlOpFailedError:
-                print(f"Table {TBL_MSGS} already exists.")
-                pass
+            r.db(DB_NAME).table_create(
+                TBL_MSGS, replicas=2
+            ).run(conn)
+            print(f"Table {TBL_MSGS} created.")
+            # Verify table creation
+            if TBL_MSGS not in r.db(DB_NAME).table_list().run(conn):
+                raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_MSGS}")
             
             # Tabla rooms
-            try:
-                r.db(DB_NAME).table_create(
-                    TBL_ROOMS,
-                    primary_key="id",
-                    replicas=2
-                ).run(conn)
-                print(f"Table {TBL_ROOMS} created.")
-            except ReqlOpFailedError:
-                print(f"Table {TBL_ROOMS} already exists.")
-                pass
+            r.db(DB_NAME).table_create(
+                TBL_ROOMS,
+                primary_key="id",
+                replicas=2
+            ).run(conn)
+            print(f"Table {TBL_ROOMS} created.")
+            # Verify table creation
+            if TBL_ROOMS not in r.db(DB_NAME).table_list().run(conn):
+                raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_ROOMS}")
             
             conn.close()
             print("RethinkDB initialization complete.")
