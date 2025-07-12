@@ -11,10 +11,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from rethinkdb import RethinkDB
 from rethinkdb.errors import ReqlOpFailedError
-import bcrypt, jwt, datetime, os, boto3, uuid, json, asyncio
+import bcrypt, jwt, datetime, os, boto3, uuid, json, asyncio, time
 from typing import Any, Callable
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
+from rethinkdb.errors import ReqlDriverError
 
 FEED_EXECUTOR = concurrent.futures.ThreadPoolExecutor() 
 
@@ -49,36 +50,69 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _init_db():
-    """Crea BD y tablas si no existen."""
-    conn = r.connect(host=RDB_HOST, port=RDB_PORT)
-    # BD
-    if DB_NAME not in r.db_list().run(conn):
-        r.db_create(DB_NAME).run(conn)
+    """Crea BD y tablas si no existen, con reintentos para la conexión."""
+    max_retries = 10
+    retry_delay = 5  # seconds
 
-    # Tabla usuarios (PK = username)
-    try:
-        r.db(DB_NAME).table_create(
-            TBL_USERS, primary_key="username", replicas=2
-        ).run(conn)
-    except ReqlOpFailedError:
-        pass
+    for i in range(max_retries):
+        try:
+            conn = r.connect(host=RDB_HOST, port=RDB_PORT)
+            print(f"Connected to RethinkDB on attempt {i+1}")
 
-    # Tabla mensajes
-    try:
-        r.db(DB_NAME).table_create(
-            TBL_MSGS, replicas=2
-        ).run(conn)
-    except ReqlOpFailedError:
-        pass
-    try:
-        r.db(DB_NAME).table_create(
-            TBL_ROOMS,
-            primary_key="id",
-            replicas=2
-        ).run(conn)
-    except ReqlOpFailedError:
-        pass
-    conn.close()
+            # BD
+            if DB_NAME not in r.db_list().run(conn):
+                r.db_create(DB_NAME).run(conn)
+                print(f"Database {DB_NAME} created.")
+            else:
+                print(f"Database {DB_NAME} already exists.")
+
+            # Tabla usuarios (PK = username)
+            try:
+                r.db(DB_NAME).table_create(
+                    TBL_USERS, primary_key="username", replicas=2
+                ).run(conn)
+                print(f"Table {TBL_USERS} created.")
+            except ReqlOpFailedError:
+                print(f"Table {TBL_USERS} already exists.")
+                pass
+
+            # Tabla mensajes
+            try:
+                r.db(DB_NAME).table_create(
+                    TBL_MSGS, replicas=2
+                ).run(conn)
+                print(f"Table {TBL_MSGS} created.")
+            except ReqlOpFailedError:
+                print(f"Table {TBL_MSGS} already exists.")
+                pass
+            
+            # Tabla rooms
+            try:
+                r.db(DB_NAME).table_create(
+                    TBL_ROOMS,
+                    primary_key="id",
+                    replicas=2
+                ).run(conn)
+                print(f"Table {TBL_ROOMS} created.")
+            except ReqlOpFailedError:
+                print(f"Table {TBL_ROOMS} already exists.")
+                pass
+            
+            conn.close()
+            print("RethinkDB initialization complete.")
+            return  # Exit loop on success
+
+        except (ReqlDriverError, ReqlOpFailedError) as e:
+            print(f"RethinkDB connection or table creation failed (attempt {i+1}/{max_retries}): {e}")
+            if i < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                print("Max retries reached. Could not initialize RethinkDB.")
+                raise  # Re-raise the exception if all retries fail
+        except Exception as e:
+            print(f"An unexpected error occurred during RethinkDB initialization: {e}")
+            raise
 
 # ---------- MinIO ----------
 
