@@ -56,59 +56,68 @@ def _init_db():
 
     for i in range(max_retries):
         try:
+            print(f"Attempting RethinkDB connection (attempt {i+1}/{max_retries})...", flush=True)
             conn = r.connect(host=RDB_HOST, port=RDB_PORT)
-            print(f"Connected to RethinkDB on attempt {i+1}")
+            print(f"Connected to RethinkDB on attempt {i+1}", flush=True)
 
             # BD
+            print(f"Checking for database {DB_NAME}...", flush=True)
             if DB_NAME not in r.db_list().run(conn):
                 r.db_create(DB_NAME).run(conn)
-                print(f"Database {DB_NAME} created.")
+                print(f"Database {DB_NAME} created.", flush=True)
             else:
-                print(f"Database {DB_NAME} already exists.")
+                print(f"Database {DB_NAME} already exists.", flush=True)
+            print(f"Database {DB_NAME} check complete.", flush=True)
 
             # Tabla usuarios (PK = username)
+            print(f"Checking for table {TBL_USERS}...", flush=True)
             r.db(DB_NAME).table_create(
                 TBL_USERS, primary_key="username", replicas=2
             ).run(conn)
-            print(f"Table {TBL_USERS} created.")
+            print(f"Table {TBL_USERS} created.", flush=True)
             # Verify table creation
             if TBL_USERS not in r.db(DB_NAME).table_list().run(conn):
                 raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_USERS}")
+            print(f"Table {TBL_USERS} check complete.", flush=True)
 
             # Tabla mensajes
+            print(f"Checking for table {TBL_MSGS}...", flush=True)
             r.db(DB_NAME).table_create(
                 TBL_MSGS, replicas=2
             ).run(conn)
-            print(f"Table {TBL_MSGS} created.")
+            print(f"Table {TBL_MSGS} created.", flush=True)
             # Verify table creation
             if TBL_MSGS not in r.db(DB_NAME).table_list().run(conn):
                 raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_MSGS}")
+            print(f"Table {TBL_MSGS} check complete.", flush=True)
             
             # Tabla rooms
+            print(f"Checking for table {TBL_ROOMS}...", flush=True)
             r.db(DB_NAME).table_create(
                 TBL_ROOMS,
                 primary_key="id",
                 replicas=2
             ).run(conn)
-            print(f"Table {TBL_ROOMS} created.")
+            print(f"Table {TBL_ROOMS} created.", flush=True)
             # Verify table creation
             if TBL_ROOMS not in r.db(DB_NAME).table_list().run(conn):
                 raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_ROOMS}")
+            print(f"Table {TBL_ROOMS} check complete.", flush=True)
             
             conn.close()
-            print("RethinkDB initialization complete.")
+            print("RethinkDB initialization complete.", flush=True)
             return  # Exit loop on success
 
         except (ReqlDriverError, ReqlOpFailedError) as e:
-            print(f"RethinkDB connection or table creation failed (attempt {i+1}/{max_retries}): {e}")
+            print(f"RethinkDB connection or table creation failed (attempt {i+1}/{max_retries}): {e}", flush=True)
             if i < max_retries - 1:
-                print(f"Retrying in {retry_delay} seconds...")
+                print(f"Retrying in {retry_delay} seconds...", flush=True)
                 time.sleep(retry_delay)
             else:
-                print("Max retries reached. Could not initialize RethinkDB.")
+                print("Max retries reached. Could not initialize RethinkDB.", flush=True)
                 raise  # Re-raise the exception if all retries fail
         except Exception as e:
-            print(f"An unexpected error occurred during RethinkDB initialization: {e}")
+            print(f"An unexpected error occurred during RethinkDB initialization: {e}", flush=True)
             raise
 
 # ---------- MinIO ----------
