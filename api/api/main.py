@@ -31,7 +31,7 @@ TBL_MSGS  = "messages"
 
 def _get_conn():
     """Devuelve una conexión *nueva* a la BD."""
-    return r.connect(host=RDB_HOST, port=RDB_PORT, db=DB_NAME)
+    return r.connect(host=RDB_HOST, port=RDB_PORT)
 
 def _run_sync(f: Callable[[], Any]):
     """Ejecuta bloqueante en thread pool y devuelve el resultado."""
@@ -192,10 +192,10 @@ async def register(u: dict):
     def _tx():
         conn = _get_conn()
         # ¿Existe?
-        if r.table(TBL_USERS).get(u["username"]).run(conn):
+        if r.db(DB_NAME).table(TBL_USERS).get(u["username"]).run(conn):
             conn.close()
             raise ValueError("Usuario ya existe")
-        r.table(TBL_USERS).insert(
+        r.db(DB_NAME).table(TBL_USERS).insert(
             {"username": u["username"], "password": hashed,
              "created_at": r.now()}
         ).run(conn)
@@ -211,7 +211,7 @@ async def register(u: dict):
 async def login(u: dict):
     def _tx():
         conn = _get_conn()
-        row = r.table(TBL_USERS).get(u["username"]).run(conn)
+        row = r.db(DB_NAME).table(TBL_USERS).get(u["username"]).run(conn)
         conn.close()
         return row
     row = await _run_sync(_tx)
@@ -226,7 +226,7 @@ async def list_rooms(user: str = Depends(verify_token)):
     def _tx():
         conn = _get_conn()
         cursor = (
-            r.table(TBL_ROOMS)
+             r.db(DB_NAME).table(TBL_ROOMS)
              .filter(lambda room: room["participants"].contains(user))
              .run(conn)
         )
@@ -251,11 +251,11 @@ async def create_room(
     def _tx():
         conn = _get_conn()
         # Verifica que no exista ya
-        if r.table(TBL_ROOMS).get(body["id"]).run(conn):
+        if r.db(DB_NAME).table(TBL_ROOMS).get(body["id"]).run(conn):
             conn.close()
             raise ValueError("La sala ya existe")
         # Inserta la sala
-        r.table(TBL_ROOMS).insert({
+        r.db(DB_NAME).table(TBL_ROOMS).insert({
             "id":           body["id"],
             "participants": body["participants"],
             "created_by":   user,
@@ -279,7 +279,7 @@ async def send(msg: dict, user: str = Depends(verify_token)):
     """
     def _tx():
         conn = _get_conn()
-        r.table(TBL_MSGS).insert({
+        r.db(DB_NAME).table(TBL_MSGS).insert({
             "from":    user,
             "room":    msg["room"],
             "content": msg["content"],
@@ -295,7 +295,7 @@ async def history(room: str, limit: int = 50,
                   user: str = Depends(verify_token)):
     def _tx():
         conn = _get_conn()
-        cursor = (r.table(TBL_MSGS)
+        cursor = (r.db(DB_NAME).table(TBL_MSGS)
                     .filter({"room": room})
                     .order_by(r.desc("ts"))
                     .limit(limit)
@@ -348,7 +348,7 @@ async def upload_file(
 async def websocket_chat(ws: WebSocket, room: str):
     await ws.accept()
     conn = _get_conn()
-    feed = r.table(TBL_MSGS).filter({"room": room}).changes().run(conn)
+    feed = r.db(DB_NAME).table(TBL_MSGS).filter({"room": room}).changes().run(conn)
 
     loop = asyncio.get_event_loop()
 
