@@ -190,16 +190,29 @@ async def register(u: dict):
     hashed = bcrypt.hashpw(u["password"].encode(), bcrypt.gensalt()).decode()
 
     def _tx():
-        conn = _get_conn()
-        # ¿Existe?
-        if r.db(DB_NAME).table(TBL_USERS).get(u["username"]).run(conn):
-            conn.close()
-            raise ValueError("Usuario ya existe")
-        r.db(DB_NAME).table(TBL_USERS).insert(
-            {"username": u["username"], "password": hashed,
-             "created_at": r.now()}
-        ).run(conn)
-        conn.close()
+        max_retries = 5
+        retry_delay = 1  # seconds
+        for i in range(max_retries):
+            try:
+                conn = _get_conn()
+                # ¿Existe?
+                if r.db(DB_NAME).table(TBL_USERS).get(u["username"]).run(conn):
+                    conn.close()
+                    raise ValueError("Usuario ya existe")
+                r.db(DB_NAME).table(TBL_USERS).insert(
+                    {"username": u["username"], "password": hashed,
+                     "created_at": r.now()}
+                ).run(conn)
+                conn.close()
+                return # Success
+            except ReqlOpFailedError as e:
+                if "does not exist" in str(e) and i < max_retries - 1:
+                    print(f"Table not found, retrying _tx in register (attempt {i+1}/{max_retries}): {e}")
+                    time.sleep(retry_delay)
+                else:
+                    raise # Re-raise if not a "table does not exist" error or max retries reached
+            except Exception as e:
+                raise # Re-raise other exceptions
 
     try:
         await _run_sync(_tx)
