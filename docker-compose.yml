@@ -2,8 +2,8 @@ version: '3.8'
 
 networks:
   chat-net:
-    driver: bridge
-    # attachable: true
+    driver: overlay
+    attachable: true
 
 services:
   rethinkdb-master:
