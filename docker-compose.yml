@@ -63,7 +63,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      MINIO_PUBLIC_URL: http://localhost:9000
+      MINIO_PUBLIC_URL: http://minio:9000 # Changed from localhost for Docker Swarm compatibility. For external access, ensure 'minio' resolves to a public IP or use a reverse proxy.
       JWT_SECRET: super_secreto
     depends_on:
       - rethinkdb-master
@@ -72,7 +72,7 @@ services:
     networks:
       - chat-net
     deploy:
-      replicas: 3
+      replicas: 1
       restart_policy:
         condition: on-failure
 
