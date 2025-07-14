@@ -17,9 +17,6 @@ services:
       - rethinkdb-master-data:/data
     deploy:
       replicas: 1
-      placement: # Añadido para mayor control
-        constraints:
-          - node.role == manager
       restart_policy:
         condition: on-failure
 
@@ -52,14 +49,11 @@ services:
       - chat-net
     deploy:
       replicas: 1 # Se mantiene en 1. Ver nota sobre alta disponibilidad.
-      placement: # Añadido para mayor control
-        constraints:
-          - node.role == manager
       restart_policy:
         condition: on-failure
 
   api:
-    image: localhost:5000/chat-api:latest
+    image: chat-api:latest
     build: ./api
     ports:
       - "8000:8000"
@@ -69,7 +63,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      MINIO_PUBLIC_URL: http://minio:9000
+      MINIO_PUBLIC_URL: http://192.168.122.101:9000
       JWT_SECRET: super_secreto
     depends_on:
       - rethinkdb-master
