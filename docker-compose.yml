@@ -59,7 +59,7 @@ services:
         condition: on-failure
 
   api:
-    image: chat-api:latest
+    image: localhost:5000/chat-api:latest
     build: ./api
     ports:
       - "8000:8000"
