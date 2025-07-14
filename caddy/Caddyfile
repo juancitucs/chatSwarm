@@ -3,7 +3,7 @@
     @allowed_ips remote_ip 192.168.122.102 192.168.122.103
     
     handle @allowed_ips {
-        reverse_proxy 192.168.122.101:8000
+        reverse_proxy api:8000
     }
 
     handle {
@@ -23,6 +23,8 @@
         abort
     }
 }
+
+# Minio Console
 :9001 {
     @allowed_ips remote_ip 192.168.122.102 192.168.122.103
     
