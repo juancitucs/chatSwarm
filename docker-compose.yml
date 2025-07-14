@@ -40,6 +40,8 @@ services:
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -47,12 +49,12 @@ services:
       - minio-data:/data
     networks:
       - chat-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 10s
     deploy:
       replicas: 1
       restart_policy:
@@ -63,10 +65,10 @@ services:
     environment:
       RDB_HOST: rethinkdb-master
       RDB_PORT: 28015
-      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ENDPOINT: http://192.168.122.101:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      MINIO_PUBLIC_URL: http://minio:9000
+      MINIO_PUBLIC_URL: http://192.168.122.101:9000
       JWT_SECRET: super_secreto
     networks:
       - chat-net
@@ -79,8 +81,6 @@ services:
     image: caddy:latest
     ports:
       - "80:80"
-      - "9000:9000"
-      - "9001:9001"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile
     networks:
