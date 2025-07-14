@@ -1,0 +1,12 @@
+:80 {
+    @allowed_ips remote_ip 192.168.122.102 192.168.122.103
+    
+    handle @allowed_ips {
+        reverse_proxy 192.168.122.101:80
+    }
+
+    handle {
+        # Bloquea cualquier otra IP
+        abort
+    }
+}

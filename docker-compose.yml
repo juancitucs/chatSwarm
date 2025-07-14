@@ -75,6 +75,18 @@ services:
       restart_policy:
         condition: on-failure
 
+  proxy:
+    image: caddy:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+    networks:
+      - chat-net
+    deploy:
+      restart_policy:
+        condition: on-failure
+
 volumes:
   minio-data:
   rethinkdb-master-data:
