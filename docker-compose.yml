@@ -38,7 +38,6 @@ services:
     image: minio/minio
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -54,8 +53,6 @@ services:
 
   api:
     image: chat-api:latest
-    ports:
-      - "8000:8000"
     environment:
       RDB_HOST: rethinkdb-master
       RDB_PORT: 28015
@@ -79,6 +76,7 @@ services:
     image: caddy:latest
     ports:
       - "80:80"
+      - "9000:9000"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile
     networks:
