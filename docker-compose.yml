@@ -31,7 +31,7 @@ services:
     volumes:
       - rethinkdb-replica-data:/data
     deploy:
-      replicas: 2 # Aumentado a 2 para tener un total de 3 nodos de DB
+      replicas: 1 # Aumentado a 2 para tener un total de 3 nodos de DB
       restart_policy:
         condition: on-failure
     depends_on:
@@ -77,7 +77,7 @@ services:
     networks:
       - chat-net
     deploy:
-      replicas: 3 # Aumentado a 3 para alta disponibilidad
+      replicas: 1 # Aumentado a 3 para alta disponibilidad
       restart_policy:
         condition: on-failure
 
