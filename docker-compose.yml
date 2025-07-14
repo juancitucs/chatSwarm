@@ -36,9 +36,6 @@ services:
       replicas: 1 # Aumentado a 2 para tener un total de 3 nodos de DB
       restart_policy:
         condition: on-failure
-    depends_on:
-      rethinkdb-master:
-        condition: service_healthy
 
   minio:
     image: minio/minio
@@ -51,7 +48,7 @@ services:
     networks:
       - chat-net
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -71,11 +68,6 @@ services:
       MINIO_SECRET_KEY: minioadmin
       MINIO_PUBLIC_URL: http://minio:9000
       JWT_SECRET: super_secreto
-    depends_on:
-      rethinkdb-master:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
     networks:
       - chat-net
     deploy:
