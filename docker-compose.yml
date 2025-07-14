@@ -54,7 +54,6 @@ services:
 
   api:
     image: chat-api:latest
-    build: ./api
     ports:
       - "8000:8000"
     environment:
@@ -67,6 +66,7 @@ services:
       JWT_SECRET: super_secreto
     depends_on:
       - rethinkdb-master
+      - rethinkdb-replica
       - minio
     networks:
       - chat-net
