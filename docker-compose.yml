@@ -59,7 +59,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      MINIO_PUBLIC_URL: http://192.168.122.101:9000
+      MINIO_PUBLIC_URL: http://minio:9000
       JWT_SECRET: super_secreto
     depends_on:
       - rethinkdb-master
@@ -77,6 +77,7 @@ services:
     ports:
       - "80:80"
       - "9000:9000"
+      - "9001:9001"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile
     networks:
