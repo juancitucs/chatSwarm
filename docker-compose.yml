@@ -15,6 +15,11 @@ services:
       - chat-net
     volumes:
       - rethinkdb-master-data:/data
+    healthcheck:
+      test: ["CMD", "rethinkdb", "dump", "-c", "localhost:28015"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       replicas: 1
       restart_policy:
@@ -32,7 +37,8 @@ services:
       restart_policy:
         condition: on-failure
     depends_on:
-      - rethinkdb-master
+      rethinkdb-master:
+        condition: service_healthy
 
   minio:
     image: minio/minio
@@ -44,8 +50,14 @@ services:
       - minio-data:/data
     networks:
       - chat-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     deploy:
-      replicas: 1 # Se mantiene en 1. Ver nota sobre alta disponibilidad.
+      replicas: 1
       restart_policy:
         condition: on-failure
 
@@ -60,13 +72,14 @@ services:
       MINIO_PUBLIC_URL: http://minio:9000
       JWT_SECRET: super_secreto
     depends_on:
-      - rethinkdb-master
-      - rethinkdb-replica
-      - minio
+      rethinkdb-master:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - chat-net
     deploy:
-      replicas: 1 # Aumentado a 3 para alta disponibilidad
+      replicas: 1
       restart_policy:
         condition: on-failure
 
