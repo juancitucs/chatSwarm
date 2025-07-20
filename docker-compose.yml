@@ -6,7 +6,8 @@ networks:
     attachable: true
 
 services:
-  command: rethinkdb --bind all --canonical-address rethinkdb-master 
+  rethinkdb-master:
+    command: rethinkdb --bind all --canonical-address rethinkdb-master 
     ports:
       - "28015:28015"
       - "8080:8080"
