@@ -131,37 +131,63 @@ def _init_db():
 
 # ---------- MinIO ----------
 
-MINIO = boto3.client(
-    "s3",
-    endpoint_url=os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
-    aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
-    aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
-)
+MINIO = None
 
-# Crear bucket 'chat' si no existe
-try:
-    MINIO.head_bucket(Bucket="chat")
-except ClientError as e:
-    code = e.response["Error"]["Code"]
-    if code in ("404", "NoSuchBucket"):
-        MINIO.create_bucket(Bucket="chat")
-    else:
-        raise
+@app.on_event("startup")
+def _init_minio():
+    global MINIO
+    max_retries = 10
+    retry_delay = 5  # seconds
 
-# Política pública de sólo lectura para todos los objetos en el bucket
-public_read_policy = {
-    "Version": "2012-10-17",
-    "Statement": [{
-        "Effect": "Allow",
-        "Principal": {"AWS": ["*"]},
-        "Action": ["s3:GetObject"],
-        "Resource": ["arn:aws:s3:::chat/*"]
-    }]
-}
-MINIO.put_bucket_policy(
-    Bucket="chat",
-    Policy=json.dumps(public_read_policy)
-)
+    for i in range(max_retries):
+        try:
+            print(f"Attempting MinIO connection (attempt {i+1}/{max_retries})...", flush=True)
+            minio_client = boto3.client(
+                "s3",
+                endpoint_url=os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
+                aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
+                aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
+            )
+            # Check if the connection is valid by listing buckets
+            minio_client.list_buckets()
+            MINIO = minio_client
+            print(f"Connected to MinIO on attempt {i+1}", flush=True)
+
+            # Crear bucket 'chat' si no existe
+            try:
+                MINIO.head_bucket(Bucket="chat")
+            except ClientError as e:
+                code = e.response["Error"]["Code"]
+                if code in ("404", "NoSuchBucket"):
+                    MINIO.create_bucket(Bucket="chat")
+                else:
+                    raise
+
+            # Política pública de sólo lectura para todos los objetos en el bucket
+            public_read_policy = {
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Effect": "Allow",
+                    "Principal": {"AWS": ["*"]},
+                    "Action": ["s3:GetObject"],
+                    "Resource": ["arn:aws:s3:::chat/*"]
+                }]
+            }
+            MINIO.put_bucket_policy(
+                Bucket="chat",
+                Policy=json.dumps(public_read_policy)
+            )
+            print("MinIO initialization complete.", flush=True)
+            return  # Exit loop on success
+
+        except Exception as e:
+            print(f"MinIO connection failed (attempt {i+1}/{max_retries}): {e}", flush=True)
+            if i < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...", flush=True)
+                time.sleep(retry_delay)
+            else:
+                print("Max retries reached. Could not initialize MinIO.", flush=True)
+                raise  # Re-raise the exception if all retries fail
 
 
 
