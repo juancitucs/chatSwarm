@@ -71,8 +71,7 @@ def _init_db():
                 print(f"Database {DB_NAME} created.", flush=True)
             else:
                 print(f"Database {DB_NAME} already exists.", flush=True)
-            print(f"Database {DB_NAME} check complete.
-", flush=True)
+            print(f"Database {DB_NAME} check complete.", flush=True)", flush=True)
 
             # Tabla usuarios (PK = username)
             print(f"Checking for table {TBL_USERS}...", flush=True)
@@ -118,8 +117,7 @@ def _init_db():
                 raise ReqlOpFailedError(
                     f"Failed to confirm creation of table {TBL_ROOMS}"
                 )
-            print(f"Table {TBL_ROOMS} check complete.
-", flush=True)
+            print(f"Table {TBL_ROOMS} check complete.", flush=True)
 
             conn.close()
             print("RethinkDB initialization complete.", flush=True)

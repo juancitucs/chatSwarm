@@ -6,7 +6,7 @@ networks:
     attachable: true
 
 services:
-  rethinkdb-replica:
+  rethinkdb-master:
     image: rethinkdb
     command: rethinkdb --bind all --canonical-address rethinkdb-master 
     ports:
