@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import socket
 import time
 import sys
 import subprocess
@@ -9,10 +10,10 @@ SERVICES = os.getenv("WAIT_FOR_SERVICES", "rethinkdb-master:28015 minio:9000")
 
 def wait_for_services():
     """Waits for services to be available."""
-    print("Python Entrypoint: Starting service dependency check...")
-    print(f"WAIT_FOR_SERVICES: {SERVICES}")
+    print("Python Entrypoint: Starting service dependency check...", flush=True)
+    print(f"WAIT_FOR_SERVICES: {SERVICES}", flush=True)
     if not SERVICES:
-        print("No services to wait for.")
+        print("No services to wait for.", flush=True)
         return
 
     for service in SERVICES.split():
@@ -20,28 +21,31 @@ def wait_for_services():
             host, port_str = service.split(':', 1)
             port = int(port_str)
         except ValueError:
-            print(f"Invalid service format: {service}. Skipping.")
+            print(f"Invalid service format: {service}. Skipping.", flush=True)
             continue
 
-        print(f"Waiting for service at {host}:{port}...")
+        print(f"Waiting for service at {host}:{port}...", flush=True)
 
+        # First, wait for DNS resolution
         while True:
             try:
-                # Use ping to check host reachability
-                result = subprocess.run(['ping', '-c', '1', host], capture_output=True, text=True, check=False)
-                if result.returncode == 0:
-                    print(f"Service {host}:{port} is reachable (ping successful).")
-                    # Now try to connect to the port
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.settimeout(2)
-                        s.connect((host, port))
-                    print(f"Service {host}:{port} is ready.")
-                    break  # Exit the while loop on success
-                else:
-                    print(f"Service {host}:{port} not reachable (ping failed). Retrying in 2 seconds...")
-                    time.sleep(2)
+                ip_address = socket.gethostbyname(host)
+                print(f"Resolved {host} to {ip_address}", flush=True)
+                break
+            except socket.gaierror as e:
+                print(f"DNS resolution for {host} failed ({e}). Retrying in 2 seconds...", flush=True)
+                time.sleep(2)
+
+        # Then, wait for port to be open
+        while True:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2)
+                    s.connect((host, port))
+                print(f"Service {host}:{port} is ready.", flush=True)
+                break  # Exit the while loop on success
             except (socket.timeout, ConnectionRefusedError, OSError) as e:
-                print(f"Service {host}:{port} not ready yet ({e.__class__.__name__}). Retrying in 2 seconds...")
+                print(f"Service {host}:{port} not ready yet ({e.__class__.__name__}). Retrying in 2 seconds...", flush=True)
                 time.sleep(2)
 
 if __name__ == "__main__":
@@ -50,9 +54,9 @@ if __name__ == "__main__":
     # The command to execute is passed as arguments to this script
     cmd = sys.argv[1:]
     if not cmd:
-        print("Error: No command specified to run after waiting.", file=sys.stderr)
+        print("Error: No command specified to run after waiting.", file=sys.stderr, flush=True)
         sys.exit(1)
 
-    print(f"All services are up. Executing command: {' '.join(cmd)}")
+    print(f"All services are up. Executing command: {' '.join(cmd)}", flush=True)
     # Replace the current process with the specified command
     os.execvp(cmd[0], cmd)
