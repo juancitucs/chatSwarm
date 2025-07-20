@@ -16,12 +16,6 @@ services:
       - chat-net
     volumes:
       - rethinkdb-master-data:/data
-    healthcheck:
-      test: ["CMD", "rethinkdb", "ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
     deploy:
       replicas: 1
       restart_policy:
