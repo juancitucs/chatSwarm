@@ -6,9 +6,7 @@ networks:
     attachable: true
 
 services:
-  rethinkdb-master:
-    image: rethinkdb
-    command: rethinkdb --bind all
+  command: rethinkdb --bind all --canonical-address rethinkdb-master 
     ports:
       - "28015:28015"
       - "8080:8080"
@@ -43,12 +41,6 @@ services:
       - minio-data:/data
     networks:
       - chat-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
     deploy:
       replicas: 1
       restart_policy:
@@ -75,15 +67,7 @@ services:
       restart_policy:
         condition: on-failure
 
-  web:
-    build: ./web
-    image: chat-web:latest
-    networks:
-      - chat-net
-    deploy:
-      replicas: 2
-      restart_policy:
-        condition: on-failure
+  
 
   proxy:
     image: caddy:latest
@@ -97,7 +81,6 @@ services:
     depends_on:
       - api
       - minio
-      - web
     deploy:
       mode: global
       restart_policy:
