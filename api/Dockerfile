@@ -36,5 +36,5 @@ RUN chmod +x /app/wait-for-services.py
 # 6) Exponemos el puerto y arrancamos Uvicorn
 EXPOSE 8000
 ENTRYPOINT ["/app/wait-for-services.py"]
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-c", "import socket; print(socket.gethostbyname('minio'))"]
 
