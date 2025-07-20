@@ -25,24 +25,21 @@ def wait_for_services():
 
         print(f"Waiting for service at {host}:{port}...")
 
-        # First, wait for DNS resolution
         while True:
             try:
-                ip_address = socket.gethostbyname(host)
-                print(f"Resolved {host} to {ip_address}")
-                break
-            except socket.gaierror as e:
-                print(f"DNS resolution for {host} failed ({e}). Retrying in 2 seconds...")
-                time.sleep(2)
-
-        # Then, wait for port to be open
-        while True:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(2)
-                    s.connect((host, port))
-                print(f"Service {host}:{port} is ready.")
-                break  # Exit the while loop on success
+                # Use ping to check host reachability
+                result = subprocess.run(['ping', '-c', '1', host], capture_output=True, text=True, check=False)
+                if result.returncode == 0:
+                    print(f"Service {host}:{port} is reachable (ping successful).")
+                    # Now try to connect to the port
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(2)
+                        s.connect((host, port))
+                    print(f"Service {host}:{port} is ready.")
+                    break  # Exit the while loop on success
+                else:
+                    print(f"Service {host}:{port} not reachable (ping failed). Retrying in 2 seconds...")
+                    time.sleep(2)
             except (socket.timeout, ConnectionRefusedError, OSError) as e:
                 print(f"Service {host}:{port} not ready yet ({e.__class__.__name__}). Retrying in 2 seconds...")
                 time.sleep(2)
