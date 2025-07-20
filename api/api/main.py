@@ -8,11 +8,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from rethinkdb import RethinkDB
 from rethinkdb.errors import ReqlOpFailedError
-import bcrypt, jwt, datetime, os, boto3, uuid, json, asyncio, time
+import bcrypt, jwt, datetime, os, boto3, uuid, json, asyncio, time, logging
 from typing import Any, Callable
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from rethinkdb.errors import ReqlDriverError
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 FEED_EXECUTOR = concurrent.futures.ThreadPoolExecutor()
 
@@ -29,7 +31,10 @@ TBL_MSGS = "messages"
 
 def _get_conn():
     """Devuelve una conexión *nueva* a la BD."""
-    return r.connect(host=RDB_HOST, port=RDB_PORT)
+    logging.info(f"Establishing new RethinkDB connection to {RDB_HOST}:{RDB_PORT}")
+    conn = r.connect(host=RDB_HOST, port=RDB_PORT)
+    logging.info("RethinkDB connection established.")
+    return conn
 
 
 def _run_sync(f: Callable[[], Any]):
@@ -57,89 +62,84 @@ def _init_db():
 
     for i in range(max_retries):
         try:
-            print(
-                f"Attempting RethinkDB connection (attempt {i+1}/{max_retries})...",
-                flush=True,
-            )
+            logging.info(f"Attempting RethinkDB connection (attempt {i+1}/{max_retries})...")
             conn = r.connect(host=RDB_HOST, port=RDB_PORT)
-            print(f"Connected to RethinkDB on attempt {i+1}", flush=True)
+            logging.info(f"Connected to RethinkDB on attempt {i+1}")
 
             # BD
-            print(f"Checking for database {DB_NAME}...", flush=True)
+            logging.info(f"Checking for database {DB_NAME}...")
             if DB_NAME not in r.db_list().run(conn):
                 r.db_create(DB_NAME).run(conn)
-                print(f"Database {DB_NAME} created.", flush=True)
+                logging.info(f"Database {DB_NAME} created.")
             else:
-                print(f"Database {DB_NAME} already exists.", flush=True)
-            print(f"Database {DB_NAME} check complete.", flush=True)", flush=True)
+                logging.info(f"Database {DB_NAME} already exists.")
+            logging.info(f"Database {DB_NAME} check complete.")
 
             # Tabla usuarios (PK = username)
-            print(f"Checking for table {TBL_USERS}...", flush=True)
+            logging.info(f"Checking for table {TBL_USERS}...")
             if TBL_USERS not in r.db(DB_NAME).table_list().run(conn):
                 r.db(DB_NAME).table_create(
                     TBL_USERS, primary_key="username", replicas=1
                 ).run(conn)
-                print(f"Table {TBL_USERS} created.", flush=True)
+                logging.info(f"Table {TBL_USERS} created.")
             else:
-                print(f"Table {TBL_USERS} already exists.", flush=True)
+                logging.info(f"Table {TBL_USERS} already exists.")
             # Verify table creation
             if TBL_USERS not in r.db(DB_NAME).table_list().run(conn):
                 raise ReqlOpFailedError(
                     f"Failed to confirm creation of table {TBL_USERS}"
                 )
-            print(f"Table {TBL_USERS} check complete.", flush=True)
+            logging.info(f"Table {TBL_USERS} check complete.")
 
             # Tabla mensajes
-            print(f"Checking for table {TBL_MSGS}...", flush=True)
+            logging.info(f"Checking for table {TBL_MSGS}...")
             if TBL_MSGS not in r.db(DB_NAME).table_list().run(conn):
                 r.db(DB_NAME).table_create(TBL_MSGS, replicas=1).run(conn)
-                print(f"Table {TBL_MSGS} created.", flush=True)
+                logging.info(f"Table {TBL_MSGS} created.")
             else:
-                print(f"Table {TBL_MSGS} already exists.", flush=True)
+                logging.info(f"Table {TBL_MSGS} already exists.")
             # Verify table creation
             if TBL_MSGS not in r.db(DB_NAME).table_list().run(conn):
                 raise ReqlOpFailedError(
                     f"Failed to confirm creation of table {TBL_MSGS}"
                 )
-            print(f"Table {TBL_MSGS} check complete.", flush=True)
+            logging.info(f"Table {TBL_MSGS} check complete.")
 
             # Tabla rooms
-            print(f"Checking for table {TBL_ROOMS}...", flush=True)
+            logging.info(f"Checking for table {TBL_ROOMS}...")
             if TBL_ROOMS not in r.db(DB_NAME).table_list().run(conn):
                 r.db(DB_NAME).table_create(TBL_ROOMS, primary_key="id", replicas=1).run(
                     conn
                 )
-                print(f"Table {TBL_ROOMS} created.", flush=True)
+                logging.info(f"Table {TBL_ROOMS} created.")
             else:
-                print(f"Table {TBL_ROOMS} already exists.", flush=True)
+                logging.info(f"Table {TBL_ROOMS} already exists.")
             # Verify table creation
             if TBL_ROOMS not in r.db(DB_NAME).table_list().run(conn):
                 raise ReqlOpFailedError(
                     f"Failed to confirm creation of table {TBL_ROOMS}"
                 )
-            print(f"Table {TBL_ROOMS} check complete.", flush=True)
+            logging.info(f"Table {TBL_ROOMS} check complete.")
 
             conn.close()
-            print("RethinkDB initialization complete.", flush=True)
+            logging.info("RethinkDB initialization complete.")
             return  # Exit loop on success
 
         except (ReqlDriverError, ReqlOpFailedError) as e:
-            print(
-                f"RethinkDB connection or table creation failed (attempt {i+1}/{max_retries}): {e}",
-                flush=True,
+            logging.error(
+                f"RethinkDB connection or table creation failed (attempt {i+1}/{max_retries}): {e}"
             )
             if i < max_retries - 1:
-                print(f"Retrying in {retry_delay} seconds...", flush=True)
+                logging.info(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
             else:
-                print(
-                    "Max retries reached. Could not initialize RethinkDB.", flush=True
+                logging.error(
+                    "Max retries reached. Could not initialize RethinkDB."
                 )
                 raise  # Re-raise the exception if all retries fail
         except Exception as e:
-            print(
-                f"An unexpected error occurred during RethinkDB initialization: {e}",
-                flush=True,
+            logging.error(
+                f"An unexpected error occurred during RethinkDB initialization: {e}"
             )
             raise
 
@@ -158,9 +158,8 @@ def _init_minio():
     for i in range(max_retries):
         try:
             minio_endpoint = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
-            print(
-                f"Attempting MinIO connection to {minio_endpoint} (attempt {i+1}/{max_retries})...",
-                flush=True,
+            logging.info(
+                f"Attempting MinIO connection to {minio_endpoint} (attempt {i+1}/{max_retries})..."
             )
             minio_client = boto3.client(
                 "s3",
@@ -171,15 +170,17 @@ def _init_minio():
             # Check if the connection is valid by listing buckets
             minio_client.list_buckets()
             MINIO = minio_client
-            print(f"Connected to MinIO on attempt {i+1}", flush=True)
+            logging.info(f"Connected to MinIO on attempt {i+1}")
 
             # Crear bucket 'chat' si no existe
             try:
                 MINIO.head_bucket(Bucket="chat")
+                logging.info("MinIO bucket 'chat' already exists.")
             except ClientError as e:
                 code = e.response["Error"]["Code"]
                 if code in ("404", "NoSuchBucket"):
                     MINIO.create_bucket(Bucket="chat")
+                    logging.info("MinIO bucket 'chat' created.")
                 else:
                     raise
 
@@ -198,19 +199,18 @@ def _init_minio():
             MINIO.put_bucket_policy(
                 Bucket="chat", Policy=json.dumps(public_read_policy)
             )
-            print("MinIO initialization complete.", flush=True)
+            logging.info("MinIO initialization complete.")
             return  # Exit loop on success
 
         except Exception as e:
-            print(
-                f"MinIO connection failed (attempt {i+1}/{max_retries}): {e}",
-                flush=True,
+            logging.error(
+                f"MinIO connection failed (attempt {i+1}/{max_retries}): {e}"
             )
             if i < max_retries - 1:
-                print(f"Retrying in {retry_delay} seconds...", flush=True)
+                logging.info(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
             else:
-                print("Max retries reached. Could not initialize MinIO.", flush=True)
+                logging.error("Max retries reached. Could not initialize MinIO.")
                 raise  # Re-raise the exception if all retries fail
 
 
@@ -272,7 +272,7 @@ async def register(u: dict):
                 return  # Success
             except ReqlOpFailedError as e:
                 if "does not exist" in str(e) and i < max_retries - 1:
-                    print(
+                    logging.warning(
                         f"Table not found, retrying _tx in register (attempt {i+1}/{max_retries}): {e}"
                     )
                     time.sleep(retry_delay)

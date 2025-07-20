@@ -23,3 +23,4 @@ RUN chmod +x /app/wait-for-services.py
 EXPOSE 8000
 ENTRYPOINT ["/app/wait-for-services.py"]
 CMD ["/opt/venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Dummy comment to force Docker rebuild
