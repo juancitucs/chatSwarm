@@ -5,9 +5,8 @@
     }
 
     # Todas las demás peticiones van al servicio web estático
-    handle {
-        reverse_proxy web:80
-    }
+    root * /srv/web
+    file_server
 }
 
 :9000 {

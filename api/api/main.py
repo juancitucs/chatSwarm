@@ -71,7 +71,8 @@ def _init_db():
                 print(f"Database {DB_NAME} created.", flush=True)
             else:
                 print(f"Database {DB_NAME} already exists.", flush=True)
-            print(f"Database {DB_NAME} check complete.", flush=True)
+            print(f"Database {DB_NAME} check complete.
+", flush=True)
 
             # Tabla usuarios (PK = username)
             print(f"Checking for table {TBL_USERS}...", flush=True)
@@ -117,7 +118,8 @@ def _init_db():
                 raise ReqlOpFailedError(
                     f"Failed to confirm creation of table {TBL_ROOMS}"
                 )
-            print(f"Table {TBL_ROOMS} check complete.", flush=True)
+            print(f"Table {TBL_ROOMS} check complete.
+", flush=True)
 
             conn.close()
             print("RethinkDB initialization complete.", flush=True)
@@ -237,15 +239,6 @@ def verify_token(
         raise HTTPException(status_code=401, detail="Token expirado")
     except Exception:
         raise HTTPException(status_code=401, detail="Token inválido")
-
-
-# ---------- Archivos estáticos ----------
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-@app.get("/")
-def read_index():
-    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
 
 
 # ---------- Endpoints ----------
