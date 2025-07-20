@@ -3,7 +3,13 @@
 FROM python:3.10-slim
 
 # 1) Dependencias del sistema para compilar bcrypt, OpenSSL, etc.
-RUN apt-get update   && apt-get install -y --no-install-recommends   gcc   libffi-dev   libssl-dev   build-essential   netcat-openbsd   && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  gcc \
+  libffi-dev \
+  libssl-dev \
+  build-essential \
+  && rm -rf /var/lib/apt/lists/*
 
 # 2) Creamos un virtualenv e instalamos pip dentro
 ENV VENV_PATH=/opt/venv
@@ -25,10 +31,10 @@ RUN pip install --upgrade pip \
 COPY api/ ./
 
 # Make entrypoint script executable
-RUN chmod +x /app/entrypoint.sh
+RUN chmod +x /app/wait-for-services.py
 
 # 6) Exponemos el puerto y arrancamos Uvicorn
 EXPOSE 8000
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/wait-for-services.py"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
