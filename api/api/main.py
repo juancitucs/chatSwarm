@@ -3,10 +3,7 @@ import concurrent.futures
 from botocore.exceptions import ClientError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Depends
-from fastapi import (
-    FastAPI, WebSocket, UploadFile, File,
-    HTTPException, Depends
-)
+from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from rethinkdb import RethinkDB
@@ -17,36 +14,40 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from rethinkdb.errors import ReqlDriverError
 
-FEED_EXECUTOR = concurrent.futures.ThreadPoolExecutor() 
+FEED_EXECUTOR = concurrent.futures.ThreadPoolExecutor()
 
 TBL_ROOMS = "rooms"
-auth_scheme = HTTPBearer() 
+auth_scheme = HTTPBearer()
 # ---------- RethinkDB ----------
 r = RethinkDB()
-RDB_HOST = os.getenv("RDB_HOST", "localhost")
+RDB_HOST = os.getenv("RDB_HOST", "rethinkdb-master")
 RDB_PORT = int(os.getenv("RDB_PORT", 28015))
-DB_NAME   = "chat"
+DB_NAME = "chat"
 TBL_USERS = "users"
-TBL_MSGS  = "messages"
+TBL_MSGS = "messages"
+
 
 def _get_conn():
     """Devuelve una conexión *nueva* a la BD."""
     return r.connect(host=RDB_HOST, port=RDB_PORT)
+
 
 def _run_sync(f: Callable[[], Any]):
     """Ejecuta bloqueante en thread pool y devuelve el resultado."""
     loop = asyncio.get_event_loop()
     return loop.run_in_executor(None, f)
 
+
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],        # GET, POST, OPTIONS, etc.
-    allow_headers=["*"],        # Authorization, Content-Type…
+    allow_methods=["*"],  # GET, POST, OPTIONS, etc.
+    allow_headers=["*"],  # Authorization, Content-Type…
 )
+
 
 @app.on_event("startup")
 def _init_db():
@@ -56,7 +57,10 @@ def _init_db():
 
     for i in range(max_retries):
         try:
-            print(f"Attempting RethinkDB connection (attempt {i+1}/{max_retries})...", flush=True)
+            print(
+                f"Attempting RethinkDB connection (attempt {i+1}/{max_retries})...",
+                flush=True,
+            )
             conn = r.connect(host=RDB_HOST, port=RDB_PORT)
             print(f"Connected to RethinkDB on attempt {i+1}", flush=True)
 
@@ -80,58 +84,70 @@ def _init_db():
                 print(f"Table {TBL_USERS} already exists.", flush=True)
             # Verify table creation
             if TBL_USERS not in r.db(DB_NAME).table_list().run(conn):
-                raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_USERS}")
+                raise ReqlOpFailedError(
+                    f"Failed to confirm creation of table {TBL_USERS}"
+                )
             print(f"Table {TBL_USERS} check complete.", flush=True)
 
             # Tabla mensajes
             print(f"Checking for table {TBL_MSGS}...", flush=True)
             if TBL_MSGS not in r.db(DB_NAME).table_list().run(conn):
-                r.db(DB_NAME).table_create(
-                    TBL_MSGS, replicas=1
-                ).run(conn)
+                r.db(DB_NAME).table_create(TBL_MSGS, replicas=1).run(conn)
                 print(f"Table {TBL_MSGS} created.", flush=True)
             else:
                 print(f"Table {TBL_MSGS} already exists.", flush=True)
             # Verify table creation
             if TBL_MSGS not in r.db(DB_NAME).table_list().run(conn):
-                raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_MSGS}")
+                raise ReqlOpFailedError(
+                    f"Failed to confirm creation of table {TBL_MSGS}"
+                )
             print(f"Table {TBL_MSGS} check complete.", flush=True)
-            
+
             # Tabla rooms
             print(f"Checking for table {TBL_ROOMS}...", flush=True)
             if TBL_ROOMS not in r.db(DB_NAME).table_list().run(conn):
-                r.db(DB_NAME).table_create(
-                    TBL_ROOMS,
-                    primary_key="id",
-                    replicas=1
-                ).run(conn)
+                r.db(DB_NAME).table_create(TBL_ROOMS, primary_key="id", replicas=1).run(
+                    conn
+                )
                 print(f"Table {TBL_ROOMS} created.", flush=True)
             else:
                 print(f"Table {TBL_ROOMS} already exists.", flush=True)
             # Verify table creation
             if TBL_ROOMS not in r.db(DB_NAME).table_list().run(conn):
-                raise ReqlOpFailedError(f"Failed to confirm creation of table {TBL_ROOMS}")
+                raise ReqlOpFailedError(
+                    f"Failed to confirm creation of table {TBL_ROOMS}"
+                )
             print(f"Table {TBL_ROOMS} check complete.", flush=True)
-            
+
             conn.close()
             print("RethinkDB initialization complete.", flush=True)
             return  # Exit loop on success
 
         except (ReqlDriverError, ReqlOpFailedError) as e:
-            print(f"RethinkDB connection or table creation failed (attempt {i+1}/{max_retries}): {e}", flush=True)
+            print(
+                f"RethinkDB connection or table creation failed (attempt {i+1}/{max_retries}): {e}",
+                flush=True,
+            )
             if i < max_retries - 1:
                 print(f"Retrying in {retry_delay} seconds...", flush=True)
                 time.sleep(retry_delay)
             else:
-                print("Max retries reached. Could not initialize RethinkDB.", flush=True)
+                print(
+                    "Max retries reached. Could not initialize RethinkDB.", flush=True
+                )
                 raise  # Re-raise the exception if all retries fail
         except Exception as e:
-            print(f"An unexpected error occurred during RethinkDB initialization: {e}", flush=True)
+            print(
+                f"An unexpected error occurred during RethinkDB initialization: {e}",
+                flush=True,
+            )
             raise
+
 
 # ---------- MinIO ----------
 
 MINIO = None
+
 
 @app.on_event("startup")
 def _init_minio():
@@ -141,10 +157,14 @@ def _init_minio():
 
     for i in range(max_retries):
         try:
-            print(f"Attempting MinIO connection (attempt {i+1}/{max_retries})...", flush=True)
+            minio_endpoint = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
+            print(
+                f"Attempting MinIO connection to {minio_endpoint} (attempt {i+1}/{max_retries})...",
+                flush=True,
+            )
             minio_client = boto3.client(
                 "s3",
-                endpoint_url=os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
+                endpoint_url=minio_endpoint,
                 aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
                 aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
             )
@@ -166,31 +186,32 @@ def _init_minio():
             # Política pública de sólo lectura para todos los objetos en el bucket
             public_read_policy = {
                 "Version": "2012-10-17",
-                "Statement": [{
-                    "Effect": "Allow",
-                    "Principal": {"AWS": ["*"]},
-                    "Action": ["s3:GetObject"],
-                    "Resource": ["arn:aws:s3:::chat/*"]
-                }]
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {"AWS": ["*"]},
+                        "Action": ["s3:GetObject"],
+                        "Resource": ["arn:aws:s3:::chat/*"],
+                    }
+                ],
             }
             MINIO.put_bucket_policy(
-                Bucket="chat",
-                Policy=json.dumps(public_read_policy)
+                Bucket="chat", Policy=json.dumps(public_read_policy)
             )
             print("MinIO initialization complete.", flush=True)
             return  # Exit loop on success
 
         except Exception as e:
-            print(f"MinIO connection failed (attempt {i+1}/{max_retries}): {e}", flush=True)
+            print(
+                f"MinIO connection failed (attempt {i+1}/{max_retries}): {e}",
+                flush=True,
+            )
             if i < max_retries - 1:
                 print(f"Retrying in {retry_delay} seconds...", flush=True)
                 time.sleep(retry_delay)
             else:
                 print("Max retries reached. Could not initialize MinIO.", flush=True)
                 raise  # Re-raise the exception if all retries fail
-
-
-
 
 
 # ---------- JWT ----------
@@ -206,7 +227,7 @@ def create_jwt(username: str):
 
 
 def verify_token(
-    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
 ) -> str:
     token = credentials.credentials
     try:
@@ -221,9 +242,11 @@ def verify_token(
 # ---------- Archivos estáticos ----------
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 @app.get("/")
 def read_index():
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
+
 
 # ---------- Endpoints ----------
 @app.post("/api/register", status_code=201)
@@ -241,25 +264,31 @@ async def register(u: dict):
                     conn.close()
                     raise ValueError("Usuario ya existe")
                 r.db(DB_NAME).table(TBL_USERS).insert(
-                    {"username": u["username"], "password": hashed,
-                     "created_at": r.now()}
+                    {
+                        "username": u["username"],
+                        "password": hashed,
+                        "created_at": r.now(),
+                    }
                 ).run(conn)
                 conn.close()
-                return # Success
+                return  # Success
             except ReqlOpFailedError as e:
                 if "does not exist" in str(e) and i < max_retries - 1:
-                    print(f"Table not found, retrying _tx in register (attempt {i+1}/{max_retries}): {e}")
+                    print(
+                        f"Table not found, retrying _tx in register (attempt {i+1}/{max_retries}): {e}"
+                    )
                     time.sleep(retry_delay)
                 else:
-                    raise # Re-raise if not a "table does not exist" error or max retries reached
+                    raise  # Re-raise if not a "table does not exist" error or max retries reached
             except Exception as e:
-                raise # Re-raise other exceptions
+                raise  # Re-raise other exceptions
 
     try:
         await _run_sync(_tx)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True}
+
 
 @app.post("/api/login")
 async def login(u: dict):
@@ -268,9 +297,9 @@ async def login(u: dict):
         row = r.db(DB_NAME).table(TBL_USERS).get(u["username"]).run(conn)
         conn.close()
         return row
+
     row = await _run_sync(_tx)
-    if not row or not bcrypt.checkpw(u["password"].encode(),
-                                     row["password"].encode()):
+    if not row or not bcrypt.checkpw(u["password"].encode(), row["password"].encode()):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
     return {"token": create_jwt(u["username"])}
 
@@ -280,9 +309,10 @@ async def list_rooms(user: str = Depends(verify_token)):
     def _tx():
         conn = _get_conn()
         cursor = (
-             r.db(DB_NAME).table(TBL_ROOMS)
-             .filter(lambda room: room["participants"].contains(user))
-             .run(conn)
+            r.db(DB_NAME)
+            .table(TBL_ROOMS)
+            .filter(lambda room: room["participants"].contains(user))
+            .run(conn)
         )
         rooms = list(cursor)
         conn.close()
@@ -290,11 +320,10 @@ async def list_rooms(user: str = Depends(verify_token)):
 
     rooms = await _run_sync(_tx)
     return rooms
+
+
 @app.post("/api/room", status_code=201)
-async def create_room(
-    body: dict,
-    user: str = Depends(verify_token)
-):
+async def create_room(body: dict, user: str = Depends(verify_token)):
     """
     Crea una sala con id y lista de participantes.
     body = {
@@ -302,6 +331,7 @@ async def create_room(
       "participants": ["alice","bob"]
     }
     """
+
     def _tx():
         conn = _get_conn()
         # Verifica que no exista ya
@@ -309,12 +339,14 @@ async def create_room(
             conn.close()
             raise ValueError("La sala ya existe")
         # Inserta la sala
-        r.db(DB_NAME).table(TBL_ROOMS).insert({
-            "id":           body["id"],
-            "participants": body["participants"],
-            "created_by":   user,
-            "created_at":   r.now()
-        }).run(conn)
+        r.db(DB_NAME).table(TBL_ROOMS).insert(
+            {
+                "id": body["id"],
+                "participants": body["participants"],
+                "created_by": user,
+                "created_at": r.now(),
+            }
+        ).run(conn)
         conn.close()
 
     try:
@@ -322,6 +354,7 @@ async def create_room(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True}
+
 
 @app.post("/api/send")
 async def send(msg: dict, user: str = Depends(verify_token)):
@@ -331,32 +364,39 @@ async def send(msg: dict, user: str = Depends(verify_token)):
       "content": "texto libre o URL de archivo"
     }
     """
+
     def _tx():
         conn = _get_conn()
-        r.db(DB_NAME).table(TBL_MSGS).insert({
-            "from":    user,
-            "room":    msg["room"],
-            "content": msg["content"],
-            "ts":      r.now(),
-        }).run(conn)
+        r.db(DB_NAME).table(TBL_MSGS).insert(
+            {
+                "from": user,
+                "room": msg["room"],
+                "content": msg["content"],
+                "ts": r.now(),
+            }
+        ).run(conn)
         conn.close()
+
     await _run_sync(_tx)
     return {"ok": True}
 
 
 @app.get("/api/history/{room}")
-async def history(room: str, limit: int = 50,
-                  user: str = Depends(verify_token)):
+async def history(room: str, limit: int = 50, user: str = Depends(verify_token)):
     def _tx():
         conn = _get_conn()
-        cursor = (r.db(DB_NAME).table(TBL_MSGS)
-                    .filter({"room": room})
-                    .order_by(r.desc("ts"))
-                    .limit(limit)
-                    .run(conn))
+        cursor = (
+            r.db(DB_NAME)
+            .table(TBL_MSGS)
+            .filter({"room": room})
+            .order_by(r.desc("ts"))
+            .limit(limit)
+            .run(conn)
+        )
         msgs = list(cursor)
         conn.close()
         return msgs
+
     msgs = await _run_sync(_tx)
     # Convertimos a objetos JSON-serializables
     for m in msgs:
@@ -365,10 +405,7 @@ async def history(room: str, limit: int = 50,
 
 
 @app.post("/api/upload")
-async def upload_file(
-    f: UploadFile = File(...),
-    user: str = Depends(verify_token)
-):
+async def upload_file(f: UploadFile = File(...), user: str = Depends(verify_token)):
     """
     Sube cualquier tipo de archivo a MinIO y devuelve metadatos:
       - file: el ID generado
@@ -382,19 +419,15 @@ async def upload_file(
     file_id = f"{uuid.uuid4()}{os.path.splitext(f.filename)[1]}"
     # Subir a MinIO en el bucket "chat"
     MINIO.put_object(
-        Bucket="chat",
-        Key=file_id,
-        Body=content,
-        ContentType=f.content_type
+        Bucket="chat", Key=file_id, Body=content, ContentType=f.content_type
     )
     # Devolver metadatos completos
     return {
         "file": file_id,
         "filename": f.filename,
         "content_type": f.content_type,
-        "url": f"{os.getenv('MINIO_PUBLIC_URL', 'http://localhost:9000')}/chat/{file_id}"
+        "url": f"{os.getenv('MINIO_PUBLIC_URL', 'http://minio:9000')}/chat/{file_id}",
     }
-
 
 
 # ---------- WebSocket ----------
@@ -408,14 +441,11 @@ async def websocket_chat(ws: WebSocket, room: str):
 
     async def next_change():
         # Ejecuta 'feed.next()' en un hilo para que no bloquee el loop
-        return await loop.run_in_executor(
-            FEED_EXECUTOR,
-            feed.next                              
-        )
+        return await loop.run_in_executor(FEED_EXECUTOR, feed.next)
 
     try:
         while True:
-            change = await next_change()               
+            change = await next_change()
             new = change.get("new_val")
             if not new:
                 continue
