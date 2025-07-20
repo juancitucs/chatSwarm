@@ -1,240 +1,299 @@
-const API = window.location.origin;
-const { storage: STORAGE } = await (await fetch("/api/config")).json();
-let token = "",
-  user = "",
-  room = "";
-let pollRooms,
-  pollMsgs,
-  participantCount = 0;
-const $ = (id) => document.getElementById(id);
-// obtener nombre de archivo desde URL
-const getFileName = (url) => decodeURIComponent(url.split("/").pop());
+// Enhanced chat front‑end – multimedia preview, smooth scroll, toasts
+// Assumes back‑end API remains the same as original script.js
 
-// Panel toggles
-$("link-register").onclick = () => {
-  $("login-card").classList.add("hidden");
-  $("register-card").classList.remove("hidden");
-};
-$("link-login").onclick = () => {
-  $("register-card").classList.add("hidden");
-  $("login-card").classList.remove("hidden");
-};
+(() => {
+  /* ========== Config ========= */
+  const API = "/api"; // relative – Caddy proxies to FastAPI
+  const STORAGE_PROMISE = fetch("/api/config") // returns {storage: "http://IP:9000/chat/"}
+    .then((r) => (r.ok ? r.json() : { storage: "" }))
+    .then((j) => j.storage || "");
 
-// Register
-$("btn-register").onclick = async () => {
-  const u = $("reg-user").value.trim(),
-    p = $("reg-pass").value.trim();
-  if (!u || !p) return;
-  let r = await fetch(API + "/api/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: u, password: p }),
-  });
-  if (r.ok) {
-    $("login-user").value = u;
-    $("login-pass").value = p;
-    $("link-login").click();
-  } else $("reg-error").textContent = "Usuario ya existe";
-};
+  /* ========== DOM refs ========= */
+  const $loginCard = qs("#login-card");
+  const $registerCard = qs("#register-card");
+  const $app = qs("#app");
+  const $rooms = qs("#rooms");
+  const $chat = qs("#chat");
+  const $msgs = qs("#messages");
+  const $msgInput = qs("#msg-input");
+  const $fileInput = qs("#file-input");
+  const $sendBtn = qs("#btn-send");
+  const $uploadBtn = qs("#btn-upload");
 
-// Login
-$("btn-login").onclick = async () => {
-  const u = $("login-user").value.trim(),
-    p = $("login-pass").value.trim();
-  if (!u || !p) return;
-  let r = await fetch(API + "/api/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: u, password: p }),
-  });
-  if (!r.ok) {
-    $("login-error").textContent = "Credenciales inválidas";
-    return;
+  /* ========== State ========= */
+  let token = localStorage.getItem("jwt") || "";
+  let me = localStorage.getItem("user") || "";
+  let currentRoom = "";
+  let ws; // active WebSocket
+  let STORAGE = "";
+
+  /* ========== Helpers ========= */
+  function qs(sel) {
+    return document.querySelector(sel);
   }
-  token = (await r.json()).token;
-  user = u;
-  localStorage.setItem("chat_jwt", token);
-  enterApp();
-};
-
-// Auto-login
-window.addEventListener("DOMContentLoaded", () => {
-  const saved = localStorage.getItem("chat_jwt");
-  if (saved) {
-    token = saved;
-    try {
-      user = JSON.parse(atob(saved.split(".")[1])).sub;
-    } catch {}
-    enterApp();
+  function show(el) {
+    el.classList.remove("hidden");
   }
-});
-
-function enterApp() {
-  $("login-card").classList.add("hidden");
-  $("register-card").classList.add("hidden");
-  $("app").classList.remove("hidden");
-  $("btn-logout").classList.remove("hidden");
-  loadRooms();
-  pollRooms = setInterval(loadRooms, 3000);
-}
-$("btn-logout").onclick = () => {
-  localStorage.removeItem("chat_jwt");
-  location.reload();
-};
-
-async function loadRooms() {
-  let r = await fetch(API + "/api/rooms", {
-    headers: { Authorization: "Bearer " + token },
-  });
-  let rooms = await r.json();
-  $("rooms").innerHTML = "";
-  rooms.forEach((s) => {
-    let li = document.createElement("li");
-    let label = s.id
-      .split("-")
-      .filter((n) => n !== user)
-      .join(",");
-    li.textContent = label || s.id;
-    li.onclick = () => openRoom(s.id, label);
-    $("rooms").appendChild(li);
-  });
-}
-
-$("btn-new-room").onclick = () => {
-  const names = prompt("Participantes separados por coma");
-  if (!names) return;
-  let parts = [
-    ...new Set(
-      names
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ),
-  ];
-  if (!parts.includes(user)) parts.push(user);
-  const id = parts.sort().join("-");
-  fetch(API + "/api/room", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  function hide(el) {
+    el.classList.add("hidden");
+  }
+  function toast(msg, ok = true) {
+    const t = document.createElement("div");
+    t.textContent = msg;
+    t.style.cssText =
+      "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:" +
+      (ok ? "#0066cc" : "#b33") +
+      ";color:#fff;padding:8px 12px;border-radius:6px;opacity:0;transition:.3s";
+    document.body.appendChild(t);
+    requestAnimationFrame(() => (t.style.opacity = "1"));
+    setTimeout(() => {
+      t.style.opacity = "0";
+      setTimeout(() => t.remove(), 300);
+    }, 2500);
+  }
+  async function authFetch(url, opts = {}) {
+    opts.headers = {
+      ...(opts.headers || {}),
       Authorization: "Bearer " + token,
-    },
-    body: JSON.stringify({ id, participants: parts }),
-  })
-    .then(loadRooms)
-    .catch(() => alert("No se pudo crear"));
-};
-
-function openRoom(id, label) {
-  room = id;
-  participantCount = id.split("-").length;
-  $("room-title").textContent = label;
-  $("chat").classList.remove("hidden");
-  fetchMsgs();
-  clearInterval(pollMsgs);
-  pollMsgs = setInterval(fetchMsgs, 800);
-}
-
-async function fetchMsgs() {
-  if (!room) return;
-  let r = await fetch(`${API}/api/history/${room}?limit=200`, {
-    headers: { Authorization: "Bearer " + token },
-  });
-  if (!r.ok) return;
-  let arr = await r.json();
-  const messagesDiv = $("messages");
-  const shouldScroll =
-    messagesDiv.scrollTop + messagesDiv.clientHeight ===
-    messagesDiv.scrollHeight;
-  messagesDiv.innerHTML = "";
-  arr.reverse().forEach(renderMsg);
-  if (shouldScroll) {
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      "Content-Type": opts.body ? "application/json" : undefined,
+    };
+    const r = await fetch(url, opts);
+    if (r.status === 401) logout();
+    return r;
   }
-}
-
-function renderMsg(m) {
-  const wrap = document.createElement("div");
-  wrap.classList.add("msg-wrap", m.from === user ? "mine" : "other");
-  const bubble = document.createElement("div");
-  bubble.classList.add("bubble");
-  if (m.content.startsWith(STORAGE)) {
-    if (/\.(png|jpe?g|gif)$/i.test(m.content)) {
-      const img = new Image();
-      img.src = m.content;
-      bubble.appendChild(img);
-    } else if (/\.(mp4|webm|ogg)$/i.test(m.content)) {
+  function scrollIfNeeded() {
+    // keep scroll if user near bottom; else preserve position
+    const nearBottom =
+      $msgs.scrollTop + $msgs.clientHeight >= $msgs.scrollHeight - 80;
+    if (nearBottom) {
+      $msgs.scrollTop = $msgs.scrollHeight;
+    }
+  }
+  function createMediaElem(url) {
+    const ext = url.split(".").pop().toLowerCase();
+    if (["jpg", "jpeg", "png", "gif", "webp", "avif"].includes(ext)) {
+      const img = document.createElement("img");
+      img.src = url;
+      img.loading = "lazy";
+      return img;
+    }
+    if (["mp4", "webm", "ogg"].includes(ext)) {
       const video = document.createElement("video");
-      video.src = m.content;
+      video.src = url;
       video.controls = true;
-      bubble.appendChild(video);
-    } else if (/\.(mp3|wav|ogg)$/i.test(m.content)) {
+      video.preload = "metadata";
+      return video;
+    }
+    if (["mp3", "wav", "ogg"].includes(ext)) {
       const audio = document.createElement("audio");
-      audio.src = m.content;
+      audio.src = url;
       audio.controls = true;
-      bubble.appendChild(audio);
-    } else {
+      return audio;
+    }
+    // fall back link
+    const a = document.createElement("a");
+    a.href = url;
+    a.textContent = "Descargar archivo";
+    a.target = "_blank";
+    return a;
+  }
+  function renderMsg({ sender, content, ts }) {
+    const wrap = document.createElement("div");
+    wrap.className = "msg-wrap " + (sender === me ? "mine" : "other");
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+
+    // decide if content is a STORAGE url
+    if (STORAGE && content.startsWith(STORAGE)) {
+      bubble.appendChild(createMediaElem(content));
+    } else if (/^https?:\/\//.test(content)) {
       const a = document.createElement("a");
-      a.href = m.content;
-      a.textContent = getFileName(m.content);
+      a.href = content;
+      a.textContent = content;
       a.target = "_blank";
       bubble.appendChild(a);
+    } else {
+      bubble.textContent = content;
     }
-  } else {
-    bubble.textContent = m.content;
-  }
-  wrap.appendChild(bubble);
-  if (participantCount > 2) {
-    const name = document.createElement("span");
+
+    const name = document.createElement("div");
     name.className = "name";
-    name.textContent = m.from === user ? "Tú" : m.from;
-    wrap.appendChild(name);
+    name.textContent =
+      sender +
+      " · " +
+      new Date(ts).toLocaleTimeString("es-PE", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+    wrap.append(bubble, name);
+    $msgs.appendChild(wrap);
+    scrollIfNeeded();
   }
-  $("messages").appendChild(wrap);
-  // Only scroll to bottom if the user was already at the bottom
-  if (
-    $("messages").scrollTop + $("messages").clientHeight >=
-    $("messages").scrollHeight - 50
-  ) {
-    // 50px tolerance
-    $("messages").scrollTop = $("messages").scrollHeight;
+
+  /* ========== Auth flow ========= */
+  async function login(user, pass) {
+    const r = await fetch(`${API}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user, password: pass }),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      token = j.token;
+      me = user;
+      localStorage.setItem("jwt", token);
+      localStorage.setItem("user", me);
+      startApp();
+    } else {
+      toast("Credenciales inválidas", false);
+    }
   }
-}
+  async function register(user, pass) {
+    const r = await fetch(`${API}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user, password: pass }),
+    });
+    if (r.ok) {
+      toast("Cuenta creada, inicia sesión");
+      hide($registerCard);
+      show($loginCard);
+    } else {
+      const j = await r.json();
+      toast(j.detail || "Error", false);
+    }
+  }
+  function logout() {
+    token = me = "";
+    localStorage.clear();
+    hide($app);
+    hide($chat);
+    show($loginCard);
+    if (ws) ws.close();
+  }
 
-$("btn-send").onclick = async () => {
-  const txt = $("msg-input").value.trim();
-  if (!txt) return;
-  $("msg-input").value = "";
-  await postMsg(txt);
-};
-$("msg-input").addEventListener("keyup", (e) => {
-  if (e.key === "Enter") $("btn-send").click();
-});
+  /* ========== Rooms ========= */
+  async function loadRooms() {
+    const r = await authFetch(`${API}/rooms`);
+    if (!r.ok) return;
+    const rooms = await r.json();
+    $rooms.innerHTML = "";
+    rooms.forEach((room) => {
+      const li = document.createElement("li");
+      li.textContent = room.id;
+      li.onclick = () => openRoom(room.id);
+      $rooms.appendChild(li);
+    });
+  }
 
-$("btn-upload").onclick = () => $("file-input").click();
-$("file-input").onchange = async (e) => {
-  const f = e.target.files[0];
-  if (!f) return;
-  const fd = new FormData();
-  fd.append("f", f);
-  let up = await fetch(API + "/api/upload", {
-    method: "POST",
-    headers: { Authorization: "Bearer " + token },
-    body: fd,
+  /* ========== Messaging ========= */
+  async function openRoom(roomId) {
+    if (ws) ws.close();
+    currentRoom = roomId;
+    qs("#room-title").textContent = roomId;
+    show($chat);
+    $msgs.innerHTML = ""; // keep scroll at top for new room
+    await loadHistory(roomId);
+    ws = new WebSocket(
+      `ws://${location.host}${API.replace("/api", "")}/ws/${roomId}?token=${token}`,
+    );
+    ws.onmessage = (e) => renderMsg(JSON.parse(e.data));
+  }
+  async function loadHistory(roomId) {
+    const r = await authFetch(`${API}/history/${roomId}?limit=50`);
+    if (!r.ok) return;
+    const arr = (await r.json()).reverse();
+    arr.forEach(renderMsg);
+    // scroll to bottom directly for history
+    $msgs.scrollTop = $msgs.scrollHeight;
+  }
+  async function sendMsg(text, fileUrl = "") {
+    if (!currentRoom) return;
+    $sendBtn.disabled = true;
+    const body = {
+      room: currentRoom,
+      content: fileUrl || text,
+    };
+    const r = await authFetch(`${API}/send`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    $sendBtn.disabled = false;
+    if (!r.ok) {
+      toast("Error al enviar", false);
+    } else {
+      $msgInput.value = "";
+    }
+  }
+
+  /* ========== File upload ========= */
+  $uploadBtn.onclick = () => $fileInput.click();
+  $fileInput.onchange = async () => {
+    const file = $fileInput.files[0];
+    if (!file) return;
+    $uploadBtn.disabled = true;
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await authFetch(`${API}/upload`, {
+      method: "POST",
+      body: fd,
+      headers: {},
+    });
+    $uploadBtn.disabled = false;
+    if (r.ok) {
+      const { url } = await r.json();
+      sendMsg("", url);
+    } else {
+      toast("Error al subir archivo", false);
+    }
+  };
+
+  /* ========== UI bindings ========= */
+  qs("#btn-login").onclick = () =>
+    login(qs("#login-user").value, qs("#login-pass").value);
+  qs("#btn-register").onclick = () =>
+    register(qs("#reg-user").value, qs("#reg-pass").value);
+  qs("#link-register").onclick = () => {
+    hide($loginCard);
+    show($registerCard);
+  };
+  qs("#link-login").onclick = () => {
+    hide($registerCard);
+    show($loginCard);
+  };
+  qs("#btn-logout").onclick = logout;
+  qs("#btn-new-room").onclick = async () => {
+    const n = prompt("Nombre de la sala");
+    if (!n) return;
+    const r = await authFetch(`${API}/rooms`, {
+      method: "POST",
+      body: JSON.stringify({ id: n }),
+    });
+    if (r.ok) {
+      toast("Sala creada");
+      loadRooms();
+    } else {
+      toast("No se pudo crear", false);
+    }
+  };
+  $sendBtn.onclick = () => {
+    const txt = $msgInput.value.trim();
+    if (txt) sendMsg(txt);
+  };
+  $msgInput.addEventListener("keyup", (e) => {
+    if (e.key === "Enter") $sendBtn.click();
   });
-  if (!up.ok) return alert("Error al subir");
-  const { url } = await up.json();
-  await postMsg(url);
-};
 
-async function postMsg(content) {
-  await fetch(API + "/api/send", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + token,
-    },
-    body: JSON.stringify({ room, content }),
-  });
-  fetchMsgs();
-}
+  /* ========== App init ========= */
+  async function startApp() {
+    STORAGE = await STORAGE_PROMISE;
+    hide($loginCard);
+    hide($registerCard);
+    show($app);
+    show(qs("#btn-logout"));
+    loadRooms();
+  }
+  if (token && me) startApp();
+})();
