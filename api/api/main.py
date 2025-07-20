@@ -52,7 +52,7 @@ app.add_middleware(
 def _init_db():
     """Crea BD y tablas si no existen, con reintentos para la conexión."""
     max_retries = 10
-    retry_delay = 5  # seconds
+    retry_delay = 10  # seconds
 
     for i in range(max_retries):
         try:
@@ -137,7 +137,7 @@ MINIO = None
 def _init_minio():
     global MINIO
     max_retries = 10
-    retry_delay = 5  # seconds
+    retry_delay = 10  # seconds
 
     for i in range(max_retries):
         try:

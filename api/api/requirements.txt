@@ -1,9 +1,9 @@
 fastapi
-uvicorn[standard]       # Para poder usar --reload con watchgod, etc.
+uvicorn[standard]
 rethinkdb
 boto3
 bcrypt
 PyJWT
 python-jose
-python-multipart       # Para UploadFile
-aiofiles 
+python-multipart
+aiofiles

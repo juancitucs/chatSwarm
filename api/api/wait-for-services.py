@@ -11,6 +11,7 @@ SERVICES = os.getenv("WAIT_FOR_SERVICES", "rethinkdb-master:28015 minio:9000")
 def wait_for_services():
     """Waits for services to be available."""
     print("Python Entrypoint: Starting service dependency check...")
+    print(f"WAIT_FOR_SERVICES: {SERVICES}")
     if not SERVICES:
         print("No services to wait for.")
         return
