@@ -68,10 +68,17 @@ def _init_db():
 
             # BD
             logging.info(f"Checking for database {DB_NAME}...")
-            if DB_NAME not in r.db_list().run(conn):
+            db_names = r.db_list().run(conn)
+            matching_dbs = [db for db in db_names if db.strip().lower() == DB_NAME.lower()]
+
+            if len(matching_dbs) > 1:
+                logging.error(f"Multiple databases found matching '{DB_NAME}': {matching_dbs}. This is an ambiguous state. Please clean up your RethinkDB instance manually.")
+                raise ReqlOpFailedError(f"Database '{DB_NAME}' is ambiguous; multiple databases with that name exist.")
+            elif len(matching_dbs) == 0:
+                logging.info(f"Database {DB_NAME} not found. Creating it...")
                 r.db_create(DB_NAME).run(conn)
                 logging.info(f"Database {DB_NAME} created.")
-            else:
+            else: # len(matching_dbs) == 1
                 logging.info(f"Database {DB_NAME} already exists.")
             logging.info(f"Database {DB_NAME} check complete.")
 
