@@ -48,7 +48,5 @@ if __name__ == "__main__":
         sys.exit(1)
 
     print(f"All services are up. Executing command: {' '.join(cmd)}")
-    # Activate the virtual environment and then execute the command
-    # This ensures that the Python environment is correctly set up for Uvicorn
-    full_cmd = [f"/bin/bash", "-c", f"source {os.getenv("VENV_PATH")}/bin/activate && {' '.join(cmd)}"]
-    os.execvp(full_cmd[0], full_cmd)
+    # Replace the current process with the specified command
+    os.execvp(cmd[0], cmd)
