@@ -6,7 +6,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 # Copiar nuestros archivos estáticos al directorio raíz de Nginx
 # Asumimos que los archivos estáticos están en api/api/static
-COPY ../api/api/static /usr/share/nginx/html
+
 
 # Exponer el puerto 80 (puerto estándar de Nginx)
 EXPOSE 80
