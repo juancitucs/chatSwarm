@@ -142,8 +142,13 @@ async function fetchMsgs() {
   });
   if (!r.ok) return;
   let arr = await r.json();
-  $("messages").innerHTML = "";
+  const messagesDiv = $("messages");
+  const shouldScroll = messagesDiv.scrollTop + messagesDiv.clientHeight === messagesDiv.scrollHeight;
+  messagesDiv.innerHTML = "";
   arr.reverse().forEach(renderMsg);
+  if (shouldScroll) {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
 }
 
 function renderMsg(m) {
@@ -151,19 +156,28 @@ function renderMsg(m) {
   wrap.classList.add("msg-wrap", m.from === user ? "mine" : "other");
   const bubble = document.createElement("div");
   bubble.classList.add("bubble");
-  if (
-    m.content.startsWith(STORAGE) &&
-    /\.(png|jpe?g|gif)$/i.test(m.content)
-  ) {
-    const img = new Image();
-    img.src = m.content;
-    bubble.appendChild(img);
-  } else if (m.content.startsWith(STORAGE)) {
-    const a = document.createElement("a");
-    a.href = m.content;
-    a.textContent = getFileName(m.content);
-    a.target = "_blank";
-    bubble.appendChild(a);
+  if (m.content.startsWith(STORAGE)) {
+    if (/\.(png|jpe?g|gif)$/i.test(m.content)) {
+      const img = new Image();
+      img.src = m.content;
+      bubble.appendChild(img);
+    } else if (/\.(mp4|webm|ogg)$/i.test(m.content)) {
+      const video = document.createElement("video");
+      video.src = m.content;
+      video.controls = true;
+      bubble.appendChild(video);
+    } else if (/\.(mp3|wav|ogg)$/i.test(m.content)) {
+      const audio = document.createElement("audio");
+      audio.src = m.content;
+      audio.controls = true;
+      bubble.appendChild(audio);
+    } else {
+      const a = document.createElement("a");
+      a.href = m.content;
+      a.textContent = getFileName(m.content);
+      a.target = "_blank";
+      bubble.appendChild(a);
+    }
   } else {
     bubble.textContent = m.content;
   }
@@ -175,7 +189,10 @@ function renderMsg(m) {
     wrap.appendChild(name);
   }
   $("messages").appendChild(wrap);
-  $("messages").scrollTop = $("messages").scrollHeight;
+  // Only scroll to bottom if the user was already at the bottom
+  if ($("messages").scrollTop + $("messages").clientHeight >= $("messages").scrollHeight - 50) { // 50px tolerance
+    $("messages").scrollTop = $("messages").scrollHeight;
+  }
 }
 
 $("btn-send").onclick = async () => {
