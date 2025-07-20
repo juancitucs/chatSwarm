@@ -6,6 +6,16 @@ networks:
     attachable: true
 
 services:
+  keepalived:
+    image: osixia/keepalived:2.0.20
+    network_mode: host        # necesita tocar la NIC real
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - ./keepalived/keepalived.conf:/container/service/keepalived/assets/keepalived.conf
+
   rethinkdb-master:
     image: rethinkdb
     command: rethinkdb --bind all --canonical-address rethinkdb-master 

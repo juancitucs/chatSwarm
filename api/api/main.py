@@ -14,7 +14,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from rethinkdb.errors import ReqlDriverError
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 FEED_EXECUTOR = concurrent.futures.ThreadPoolExecutor()
 
@@ -62,23 +64,31 @@ def _init_db():
 
     for i in range(max_retries):
         try:
-            logging.info(f"Attempting RethinkDB connection (attempt {i+1}/{max_retries})...")
+            logging.info(
+                f"Attempting RethinkDB connection (attempt {i+1}/{max_retries})..."
+            )
             conn = r.connect(host=RDB_HOST, port=RDB_PORT)
             logging.info(f"Connected to RethinkDB on attempt {i+1}")
 
             # BD
             logging.info(f"Checking for database {DB_NAME}...")
             db_names = r.db_list().run(conn)
-            matching_dbs = [db for db in db_names if db.strip().lower() == DB_NAME.lower()]
+            matching_dbs = [
+                db for db in db_names if db.strip().lower() == DB_NAME.lower()
+            ]
 
             if len(matching_dbs) > 1:
-                logging.error(f"Multiple databases found matching '{DB_NAME}': {matching_dbs}. This is an ambiguous state. Please clean up your RethinkDB instance manually.")
-                raise ReqlOpFailedError(f"Database '{DB_NAME}' is ambiguous; multiple databases with that name exist.")
+                logging.error(
+                    f"Multiple databases found matching '{DB_NAME}': {matching_dbs}. This is an ambiguous state. Please clean up your RethinkDB instance manually."
+                )
+                raise ReqlOpFailedError(
+                    f"Database '{DB_NAME}' is ambiguous; multiple databases with that name exist."
+                )
             elif len(matching_dbs) == 0:
                 logging.info(f"Database {DB_NAME} not found. Creating it...")
                 r.db_create(DB_NAME).run(conn)
                 logging.info(f"Database {DB_NAME} created.")
-            else: # len(matching_dbs) == 1
+            else:  # len(matching_dbs) == 1
                 logging.info(f"Database {DB_NAME} already exists.")
             logging.info(f"Database {DB_NAME} check complete.")
 
@@ -140,9 +150,7 @@ def _init_db():
                 logging.info(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
             else:
-                logging.error(
-                    "Max retries reached. Could not initialize RethinkDB."
-                )
+                logging.error("Max retries reached. Could not initialize RethinkDB.")
                 raise  # Re-raise the exception if all retries fail
         except Exception as e:
             logging.error(
@@ -210,9 +218,7 @@ def _init_minio():
             return  # Exit loop on success
 
         except Exception as e:
-            logging.error(
-                f"MinIO connection failed (attempt {i+1}/{max_retries}): {e}"
-            )
+            logging.error(f"MinIO connection failed (attempt {i+1}/{max_retries}): {e}")
             if i < max_retries - 1:
                 logging.info(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
@@ -249,9 +255,16 @@ def verify_token(
 # ---------- Archivos estáticos ----------
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 @app.get("/")
 def read_index():
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
+
+
+@app.get("/api/config")
+def cfg():
+    return {"storage": os.getenv("MINIO_PUBLIC_URL")}
+
 
 # ---------- Endpoints ----------
 @app.post("/api/register", status_code=201)

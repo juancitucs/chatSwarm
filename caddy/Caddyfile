@@ -1,3 +1,8 @@
+http://192.168.122.102, http://192.168.122.103 {
+	redir http://192.168.122.101{uri} permanent
+}
+
+
 :80 {
     # Enruta las peticiones que comienzan con /api/ al servicio de la API
     handle /api/* {
