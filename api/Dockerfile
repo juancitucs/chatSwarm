@@ -30,7 +30,11 @@ RUN pip install --upgrade pip \
 # 5) Copiamos el resto de tu código fuente
 COPY api/ ./
 
+# Make entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
+
 # 6) Exponemos el puerto y arrancamos Uvicorn
 EXPOSE 8000
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
