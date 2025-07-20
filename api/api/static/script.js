@@ -1,5 +1,5 @@
 const API = window.location.origin;
-const { storage: STORAGE } = await(await fetch("/api/config")).json();
+const { storage: STORAGE } = await (await fetch("/api/config")).json();
 let token = "",
   user = "",
   room = "";
@@ -64,7 +64,7 @@ window.addEventListener("DOMContentLoaded", () => {
     token = saved;
     try {
       user = JSON.parse(atob(saved.split(".")[1])).sub;
-    } catch { }
+    } catch {}
     enterApp();
   }
 });
@@ -143,7 +143,9 @@ async function fetchMsgs() {
   if (!r.ok) return;
   let arr = await r.json();
   const messagesDiv = $("messages");
-  const shouldScroll = messagesDiv.scrollTop + messagesDiv.clientHeight === messagesDiv.scrollHeight;
+  const shouldScroll =
+    messagesDiv.scrollTop + messagesDiv.clientHeight ===
+    messagesDiv.scrollHeight;
   messagesDiv.innerHTML = "";
   arr.reverse().forEach(renderMsg);
   if (shouldScroll) {
@@ -190,7 +192,11 @@ function renderMsg(m) {
   }
   $("messages").appendChild(wrap);
   // Only scroll to bottom if the user was already at the bottom
-  if ($("messages").scrollTop + $("messages").clientHeight >= $("messages").scrollHeight - 50) { // 50px tolerance
+  if (
+    $("messages").scrollTop + $("messages").clientHeight >=
+    $("messages").scrollHeight - 50
+  ) {
+    // 50px tolerance
     $("messages").scrollTop = $("messages").scrollHeight;
   }
 }
