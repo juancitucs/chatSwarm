@@ -241,6 +241,13 @@ def verify_token(
         raise HTTPException(status_code=401, detail="Token inválido")
 
 
+# ---------- Archivos estáticos ----------
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+def read_index():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
+
 # ---------- Endpoints ----------
 @app.post("/api/register", status_code=201)
 async def register(u: dict):
