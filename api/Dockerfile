@@ -21,7 +21,8 @@ COPY api/requirements.txt ./requirements.txt
 
 # 4) Instalamos las dependencias Python
 RUN pip install --upgrade pip \
-  && pip install --no-cache-dir -r requirements.txt
+  && pip install --no-cache-dir -r requirements.txt \
+  && pip freeze
 
 # 5) Copiamos el resto de tu código fuente
 COPY api/ ./
