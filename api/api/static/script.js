@@ -1,299 +1,123 @@
-// Enhanced chat front‑end – multimedia preview, smooth scroll, toasts
-// Assumes back‑end API remains the same as original script.js
+
+// chatSwarm – enhanced client (multimedia preview, smooth scroll, reconnect)
+// Re‑escrito 100 %: inserta <img>, <video> y <audio> según extensión
+// Assumes endpoint /api/config devuelve {storage:"URL_BASE"}
 
 (() => {
-  /* ========== Config ========= */
-  const API = "/api"; // relative – Caddy proxies to FastAPI
-  const STORAGE_PROMISE = fetch("/api/config") // returns {storage: "http://IP:9000/chat/"}
-    .then((r) => (r.ok ? r.json() : { storage: "" }))
-    .then((j) => j.storage || "");
+  /* ===== Config ===== */
+  const API = "/api";
+  let STORAGE = ""; // se obtendrá en startup
 
-  /* ========== DOM refs ========= */
-  const $loginCard = qs("#login-card");
-  const $registerCard = qs("#register-card");
-  const $app = qs("#app");
-  const $rooms = qs("#rooms");
-  const $chat = qs("#chat");
-  const $msgs = qs("#messages");
-  const $msgInput = qs("#msg-input");
-  const $fileInput = qs("#file-input");
-  const $sendBtn = qs("#btn-send");
-  const $uploadBtn = qs("#btn-upload");
+  /* ===== Helpers ===== */
+  const qs = (sel, el = document) => el.querySelector(sel);
+  const ce = (tag, cls = "") => Object.assign(document.createElement(tag), { className: cls });
 
-  /* ========== State ========= */
-  let token = localStorage.getItem("jwt") || "";
-  let me = localStorage.getItem("user") || "";
-  let currentRoom = "";
-  let ws; // active WebSocket
-  let STORAGE = "";
+  const ext = filename => filename.split(".").pop().toLowerCase();
 
-  /* ========== Helpers ========= */
-  function qs(sel) {
-    return document.querySelector(sel);
-  }
-  function show(el) {
-    el.classList.remove("hidden");
-  }
-  function hide(el) {
-    el.classList.add("hidden");
-  }
-  function toast(msg, ok = true) {
-    const t = document.createElement("div");
-    t.textContent = msg;
-    t.style.cssText =
-      "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:" +
-      (ok ? "#0066cc" : "#b33") +
-      ";color:#fff;padding:8px 12px;border-radius:6px;opacity:0;transition:.3s";
-    document.body.appendChild(t);
-    requestAnimationFrame(() => (t.style.opacity = "1"));
-    setTimeout(() => {
-      t.style.opacity = "0";
-      setTimeout(() => t.remove(), 300);
-    }, 2500);
-  }
-  async function authFetch(url, opts = {}) {
-    opts.headers = {
-      ...(opts.headers || {}),
-      Authorization: "Bearer " + token,
-      "Content-Type": opts.body ? "application/json" : undefined,
-    };
-    const r = await fetch(url, opts);
-    if (r.status === 401) logout();
-    return r;
-  }
-  function scrollIfNeeded() {
-    // keep scroll if user near bottom; else preserve position
-    const nearBottom =
-      $msgs.scrollTop + $msgs.clientHeight >= $msgs.scrollHeight - 80;
-    if (nearBottom) {
-      $msgs.scrollTop = $msgs.scrollHeight;
-    }
-  }
-  function createMediaElem(url) {
-    const ext = url.split(".").pop().toLowerCase();
-    if (["jpg", "jpeg", "png", "gif", "webp", "avif"].includes(ext)) {
-      const img = document.createElement("img");
+  function makePreview(filename) {
+    const url = STORAGE + filename;
+    const e = ext(filename);
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(e)) {
+      const img = ce("img", "max-w-full rounded-lg");
       img.src = url;
-      img.loading = "lazy";
       return img;
     }
-    if (["mp4", "webm", "ogg"].includes(ext)) {
-      const video = document.createElement("video");
-      video.src = url;
-      video.controls = true;
-      video.preload = "metadata";
-      return video;
+    if (["mp4", "webm"].includes(e)) {
+      const vid = ce("video", "rounded-lg");
+      vid.src = url;
+      vid.controls = true;
+      vid.preload = "metadata";
+      vid.style.maxWidth = "220px";
+      return vid;
     }
-    if (["mp3", "wav", "ogg"].includes(ext)) {
-      const audio = document.createElement("audio");
-      audio.src = url;
-      audio.controls = true;
-      return audio;
+    if (["mp3", "ogg", "wav"].includes(e)) {
+      const aud = ce("audio");
+      aud.src = url;
+      aud.controls = true;
+      return aud;
     }
-    // fall back link
-    const a = document.createElement("a");
+    // default link
+    const a = ce("a", "underline");
     a.href = url;
-    a.textContent = "Descargar archivo";
     a.target = "_blank";
+    a.textContent = filename;
     return a;
   }
-  function renderMsg({ sender, content, ts }) {
-    const wrap = document.createElement("div");
-    wrap.className = "msg-wrap " + (sender === me ? "mine" : "other");
 
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-
-    // decide if content is a STORAGE url
-    if (STORAGE && content.startsWith(STORAGE)) {
-      bubble.appendChild(createMediaElem(content));
-    } else if (/^https?:\/\//.test(content)) {
-      const a = document.createElement("a");
-      a.href = content;
-      a.textContent = content;
-      a.target = "_blank";
-      bubble.appendChild(a);
-    } else {
-      bubble.textContent = content;
-    }
-
-    const name = document.createElement("div");
-    name.className = "name";
-    name.textContent =
-      sender +
-      " · " +
-      new Date(ts).toLocaleTimeString("es-PE", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-
-    wrap.append(bubble, name);
-    $msgs.appendChild(wrap);
-    scrollIfNeeded();
+  function scrollIfAtBottom(container) {
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 10;
+    if (atBottom) container.scrollTop = container.scrollHeight;
   }
 
-  /* ========== Auth flow ========= */
-  async function login(user, pass) {
-    const r = await fetch(`${API}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: user, password: pass }),
-    });
-    if (r.ok) {
-      const j = await r.json();
-      token = j.token;
-      me = user;
-      localStorage.setItem("jwt", token);
-      localStorage.setItem("user", me);
-      startApp();
-    } else {
-      toast("Credenciales inválidas", false);
-    }
-  }
-  async function register(user, pass) {
-    const r = await fetch(`${API}/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: user, password: pass }),
-    });
-    if (r.ok) {
-      toast("Cuenta creada, inicia sesión");
-      hide($registerCard);
-      show($loginCard);
-    } else {
-      const j = await r.json();
-      toast(j.detail || "Error", false);
-    }
-  }
-  function logout() {
-    token = me = "";
-    localStorage.clear();
-    hide($app);
-    hide($chat);
-    show($loginCard);
-    if (ws) ws.close();
+  /* ===== State ===== */
+  const messagesEl = qs("#messages");
+  const inputEl = qs("#msg");
+  const fileEl = qs("#file");
+  const toastEl = qs("#toast");
+
+  function showToast(txt, ms = 2000) {
+    toastEl.textContent = txt;
+    toastEl.classList.remove("opacity-0");
+    setTimeout(() => toastEl.classList.add("opacity-0"), ms);
   }
 
-  /* ========== Rooms ========= */
-  async function loadRooms() {
-    const r = await authFetch(`${API}/rooms`);
-    if (!r.ok) return;
-    const rooms = await r.json();
-    $rooms.innerHTML = "";
-    rooms.forEach((room) => {
-      const li = document.createElement("li");
-      li.textContent = room.id;
-      li.onclick = () => openRoom(room.id);
-      $rooms.appendChild(li);
-    });
-  }
-
-  /* ========== Messaging ========= */
-  async function openRoom(roomId) {
-    if (ws) ws.close();
-    currentRoom = roomId;
-    qs("#room-title").textContent = roomId;
-    show($chat);
-    $msgs.innerHTML = ""; // keep scroll at top for new room
-    await loadHistory(roomId);
-    ws = new WebSocket(
-      `ws://${location.host}${API.replace("/api", "")}/ws/${roomId}?token=${token}`,
-    );
-    ws.onmessage = (e) => renderMsg(JSON.parse(e.data));
-  }
-  async function loadHistory(roomId) {
-    const r = await authFetch(`${API}/history/${roomId}?limit=50`);
-    if (!r.ok) return;
-    const arr = (await r.json()).reverse();
-    arr.forEach(renderMsg);
-    // scroll to bottom directly for history
-    $msgs.scrollTop = $msgs.scrollHeight;
-  }
-  async function sendMsg(text, fileUrl = "") {
-    if (!currentRoom) return;
-    $sendBtn.disabled = true;
-    const body = {
-      room: currentRoom,
-      content: fileUrl || text,
+  /* ===== WebSocket ===== */
+  let ws;
+  function connectWS(room) {
+    ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/${room}`);
+    ws.onmessage = ev => {
+      const { type, content } = JSON.parse(ev.data);
+      if (type === "text") renderMessage(content);
+      if (type === "file") renderFile(content);
     };
-    const r = await authFetch(`${API}/send`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    $sendBtn.disabled = false;
-    if (!r.ok) {
-      toast("Error al enviar", false);
-    } else {
-      $msgInput.value = "";
-    }
+    ws.onclose = () => setTimeout(() => connectWS(room), 2000);
   }
 
-  /* ========== File upload ========= */
-  $uploadBtn.onclick = () => $fileInput.click();
-  $fileInput.onchange = async () => {
-    const file = $fileInput.files[0];
-    if (!file) return;
-    $uploadBtn.disabled = true;
-    const fd = new FormData();
-    fd.append("file", file);
-    const r = await authFetch(`${API}/upload`, {
-      method: "POST",
-      body: fd,
-      headers: {},
-    });
-    $uploadBtn.disabled = false;
-    if (r.ok) {
-      const { url } = await r.json();
-      sendMsg("", url);
-    } else {
-      toast("Error al subir archivo", false);
-    }
-  };
-
-  /* ========== UI bindings ========= */
-  qs("#btn-login").onclick = () =>
-    login(qs("#login-user").value, qs("#login-pass").value);
-  qs("#btn-register").onclick = () =>
-    register(qs("#reg-user").value, qs("#reg-pass").value);
-  qs("#link-register").onclick = () => {
-    hide($loginCard);
-    show($registerCard);
-  };
-  qs("#link-login").onclick = () => {
-    hide($registerCard);
-    show($loginCard);
-  };
-  qs("#btn-logout").onclick = logout;
-  qs("#btn-new-room").onclick = async () => {
-    const n = prompt("Nombre de la sala");
-    if (!n) return;
-    const r = await authFetch(`${API}/rooms`, {
-      method: "POST",
-      body: JSON.stringify({ id: n }),
-    });
-    if (r.ok) {
-      toast("Sala creada");
-      loadRooms();
-    } else {
-      toast("No se pudo crear", false);
-    }
-  };
-  $sendBtn.onclick = () => {
-    const txt = $msgInput.value.trim();
-    if (txt) sendMsg(txt);
-  };
-  $msgInput.addEventListener("keyup", (e) => {
-    if (e.key === "Enter") $sendBtn.click();
-  });
-
-  /* ========== App init ========= */
-  async function startApp() {
-    STORAGE = await STORAGE_PROMISE;
-    hide($loginCard);
-    hide($registerCard);
-    show($app);
-    show(qs("#btn-logout"));
-    loadRooms();
+  /* ===== Rendering ===== */
+  function renderMessage(text) {
+    const wrap = ce("div", "bg-blue-600 text-white p-2 rounded-lg mb-2 self-end max-w-xs break-words animate-fadeInSlideUp");
+    wrap.textContent = text;
+    messagesEl.appendChild(wrap);
+    scrollIfAtBottom(messagesEl);
   }
-  if (token && me) startApp();
+
+  function renderFile(filename) {
+    const wrap = ce("div", "bg-blue-600 p-2 rounded-lg mb-2 self-end max-w-xs animate-fadeInSlideUp flex justify-center");
+    wrap.appendChild(makePreview(filename));
+    messagesEl.appendChild(wrap);
+    scrollIfAtBottom(messagesEl);
+  }
+
+  /* ===== Sending ===== */
+  qs("#send").onclick = () => {
+    const txt = inputEl.value.trim();
+    if (!txt) return;
+    ws.send(JSON.stringify({ type: "text", content: txt }));
+    inputEl.value = "";
+  };
+
+  fileEl.onchange = async () => {
+    if (!fileEl.files[0]) return;
+    const form = new FormData();
+    form.append("file", fileEl.files[0]);
+    showToast("Subiendo…");
+    try {
+      const res = await fetch(`${API}/upload`, { method: "POST", body: form });
+      const { filename } = await res.json();
+      ws.send(JSON.stringify({ type: "file", content: filename }));
+      showToast("¡Enviado!");
+    } catch (e) {
+      console.error(e);
+      showToast("Error al subir", 3000);
+    }
+    fileEl.value = "";
+  };
+
+  /* ===== Startup ===== */
+  (async () => {
+    const cfg = await (await fetch(`${API}/config`)).json();
+    STORAGE = cfg.storage.endsWith("/") ? cfg.storage : cfg.storage + "/";
+    connectWS("general");
+  })();
 })();
+
