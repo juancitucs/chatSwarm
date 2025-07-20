@@ -1,6 +1,6 @@
 :80 {
     # Enruta las peticiones que comienzan con /api/ al servicio de la API
-    handle_path /api/* {
+    handle /api/* {
         reverse_proxy api:8000
     }
 
