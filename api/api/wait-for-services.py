@@ -24,6 +24,15 @@ def wait_for_services():
             print(f"Invalid service format: {service}. Skipping.")
             continue
 
+        # Attempt DNS resolution first
+        try:
+            ip_address = socket.gethostbyname(host)
+            print(f"Resolved {host} to {ip_address}")
+        except socket.gaierror as e:
+            print(f"Failed to resolve {host}: {e}. Retrying...")
+            time.sleep(2)
+            continue # Skip connection attempt if DNS resolution fails
+
         addr = (host, port)
         print(f"Waiting for service at {addr}...")
 
