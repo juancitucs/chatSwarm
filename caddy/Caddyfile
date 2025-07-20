@@ -1,26 +1,17 @@
-# API and Web App
 :80 {
-    @allowed_ips remote_ip 192.168.122.102 192.168.122.103
-    
-    handle @allowed_ips {
-        reverse_proxy 192.168.122.101:8000
+    # Enruta las peticiones que comienzan con /api/ al servicio de la API
+    handle_path /api/* {
+        reverse_proxy api:8000
     }
 
+    # Todas las demás peticiones van al servicio web estático
     handle {
-        abort
+        reverse_proxy web:80
     }
 }
 
-# Minio Storage
 :9000 {
-    @allowed_ips remote_ip 192.168.122.102 192.168.122.103
-    
-    handle @allowed_ips {
-        reverse_proxy 192.168.122.101:9000
-    }
-
-    handle {
-        abort
-    }
+    # El tráfico de MinIO se mantiene igual
+    reverse_proxy minio:9000
 }
 
