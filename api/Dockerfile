@@ -1,4 +1,3 @@
-
 # api/Dockerfile
 FROM python:3.10-slim
 
@@ -18,9 +17,6 @@ ENV PATH="$VENV_PATH/bin:$PATH"
 
 # 3) Definimos working dir y copiamos sólo el requirements
 WORKDIR /app
-# NOTA: porque tu código fuente está en api/api, 
-# aquí estamos en el contexto api/ (donde está Dockerfile),
-# así que el path a tu requirements es api/requirements.txt
 COPY api/requirements.txt ./requirements.txt
 
 # 4) Instalamos las dependencias Python
@@ -37,4 +33,3 @@ RUN chmod +x /app/wait-for-services.py
 EXPOSE 8000
 ENTRYPOINT ["/app/wait-for-services.py"]
 CMD ["python", "-c", "import socket; print(socket.gethostbyname('minio'))"]
-
