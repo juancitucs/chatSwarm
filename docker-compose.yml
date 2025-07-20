@@ -8,6 +8,7 @@ networks:
 services:
   rethinkdb-master:
     image: rethinkdb
+    command: rethinkdb --bind all
     ports:
       - "28015:28015"
       - "8080:8080"
