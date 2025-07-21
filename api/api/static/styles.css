@@ -158,3 +158,12 @@ a {
     transform: translateY(0);
   }
 }
+
+.chat video,
+.chat audio {
+  width: 100%;
+  max-width: 280px;
+  border-radius: 0.5rem;
+  outline: none;
+}
+
